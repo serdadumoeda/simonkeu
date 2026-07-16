@@ -16,7 +16,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // --- ALUR UTAMA PENGAJUAN (SISALAMKU) ---
+    // --- ALUR UTAMA PENGAJUAN (simonKeu) ---
     Route::get('/pengajuan', [PengajuanController::class, 'index'])->name('pengajuan.index');
     Route::get('/pengajuan/{id}', [PengajuanController::class, 'show'])->name('pengajuan.show');
 

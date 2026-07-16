@@ -354,7 +354,7 @@ class PengajuanController extends Controller
 
         // Mengirimkan instruksi ke browser agar mendownload file sebagai Excel
         header("Content-type: application/vnd-ms-excel");
-        header("Content-Disposition: attachment; filename=Rekap_Pengajuan_SISALAMKU.xls");
+        header("Content-Disposition: attachment; filename=Rekap_Pengajuan_simonKeu.xls");
 
         // Kirim data ke tampilan khusus Excel
         return view('pengajuan.excel', compact('daftarPengajuan'));

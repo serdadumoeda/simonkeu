@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - SISALAMKU BPVP Surakarta</title>
+    <title>Login - simonKeu BPVP Surakarta</title>
     <!-- Google Fonts & Bootstrap CDN -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -146,7 +146,7 @@
             <div class="text-center mb-4">
                 <div class="brand-logo d-flex align-items-center justify-content-center gap-2">
                     <i class="bi bi-wallet2 text-primary fs-3"></i>
-                    <span>SISALAMKU</span>
+                    <span>simonKeu</span>
                 </div>
                 <p class="text-secondary small px-2">Sistem Informasi Smart Administrasi Layanan Manajemen Keuangan BPVP Surakarta</p>
                 <hr class="mx-auto my-3 text-muted opacity-25" style="width: 80px;">
