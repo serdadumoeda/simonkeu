@@ -1,0 +1,220 @@
+<?
+    var user = user || Auth.getCurrentUserAccess();
+    if (user.role !== 'Operator Bidang' && user.role !== 'Admin Keuangan') {
+?>
+    <div class="alert alert-danger shadow-sm">
+        <i class="bi bi-shield-slash-fill me-2"></i> Akses Ditolak: Hanya Operator Bidang yang dapat membuat pengajuan.
+    </div>
+<? } else { 
+    var noBaru = Utils.generateNoPengajuan();
+    var scriptUrl = ScriptApp.getService().getUrl();
+?>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-dark mb-1">Buat Pengajuan SPJ Baru</h2>
+        <p class="text-muted mb-0">Isi formulir pengajuan berkas SPJ keuangan & data dukung dokumen</p>
+    </div>
+    <a href="<?= scriptUrl; ?>?page=pengajuan" target="_top" class="btn btn-secondary rounded-pill px-4">
+        <i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar
+    </a>
+</div>
+
+<div class="card card-custom p-4 bg-white shadow-sm" style="max-width: 900px; margin: 0 auto;">
+    <form id="formCreatePengajuan" onsubmit="handleFormSubmit(event)">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold text-dark">Nomor Pengajuan <span class="text-danger">*</span></label>
+                <input type="text" name="no_pengajuan" class="form-control bg-light" value="<?= noBaru; ?>" readonly required>
+                <div class="form-text small">Nomor diautogenerate secara otomatis oleh sistem.</div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label fw-semibold text-dark">Kategori Pengajuan <span class="text-danger">*</span></label>
+                <select name="kategori_pengajuan" id="selectKategori" class="form-select" onchange="renderDataDukungFields()" required>
+                    <option value="">-- Pilih Kategori Pengajuan --</option>
+                    <option value="GU/UP/TUP">GU/UP/TUP</option>
+                    <option value="LS Kontraktual">LS Kontraktual</option>
+                    <option value="LS Non Kontraktual">LS Non Kontraktual</option>
+                    <option value="LS banyak penerima">LS banyak penerima (Uang Saku)</option>
+                    <option value="LS Bendahara">LS Bendahara</option>
+                </select>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label fw-semibold text-dark">Nama Kegiatan <span class="text-danger">*</span></label>
+                <input type="text" name="nama_kegiatan" class="form-control" placeholder="Contoh: Pelatihan Kerajinan Tangan Tahap II" required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label fw-semibold text-dark">Nomor Akun DIPA <span class="text-danger">*</span></label>
+                <input type="text" name="no_akun" class="form-control" placeholder="Contoh: 524111 / 521211" required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label fw-semibold text-dark">Jenis Belanja <span class="text-danger">*</span></label>
+                <input type="text" name="jenis_belanja" class="form-control" placeholder="Contoh: Belanja Perjalanan Dinas / Bahan Praktik" required>
+            </div>
+
+            <!-- RINCIAN KEUANGAN & PAJAK OTOMATIS -->
+            <div class="col-md-4">
+                <label class="form-label fw-semibold text-dark">Nilai Bruto (Rp) <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" id="nilai_bruto" name="nilai_bruto" class="form-control" placeholder="0" oninput="hitungNeto()" required>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-semibold text-dark">Potongan Pajak (Rp)</label>
+                <input type="number" step="0.01" id="potongan_pajak" name="potongan_pajak" class="form-control" placeholder="0" oninput="hitungNeto()">
+                <div class="form-text small text-muted">Akan mengurangi bruto secara otomatis.</div>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-semibold text-dark">Nilai Neto / Riil (Rp)</label>
+                <input type="number" step="0.01" id="nilai_neto" name="nilai_neto" class="form-control bg-light text-success fw-bold" placeholder="0" readonly required>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label fw-semibold text-dark">Uraian Pembayaran</label>
+                <textarea name="uraian_pembayaran" class="form-control" rows="2" placeholder="Tuliskan penjelasan detail kegiatan/pembayaran di sini..."></textarea>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label fw-semibold text-dark">Tautan Utama Folder Google Drive SPJ <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted"><i class="bi bi-folder2-open"></i></span>
+                    <input type="url" name="link_google_drive" class="form-control" placeholder="https://drive.google.com/drive/folders/..." required>
+                </div>
+            </div>
+
+            <!-- DATA DUKUNG DOKUMEN SESUAI KATEGORI -->
+            <div class="col-md-12 mt-4">
+                <div class="card border-primary border-opacity-25 bg-light p-3">
+                    <h6 class="fw-bold text-primary mb-2">
+                        <i class="bi bi-file-earmark-check-fill me-1"></i> Data Dukung Dokumen Wajib
+                    </h6>
+                    <p class="text-muted small mb-3">
+                        Pilih Kategori Pengajuan di atas terlebih dahulu untuk menampilkan daftar berkas data dukung wajib. Masukkan link Google Drive untuk masing-masing dokumen.
+                    </p>
+
+                    <div id="containerDataDukung">
+                        <div class="alert alert-info py-2 small mb-0">
+                            <i class="bi bi-info-circle me-1"></i> Silakan pilih Kategori Pengajuan di atas.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="alertError" class="alert alert-danger mt-3 d-none"></div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+            <button type="submit" onclick="setAction('draft')" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="bi bi-save"></i> Simpan Draft
+            </button>
+            <button type="submit" onclick="setAction('submit')" class="btn btn-success rounded-pill px-4 shadow-sm">
+                <i class="bi bi-send-fill"></i> Ajukan ke Keuangan
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const dataDukungMap = JSON.parse('<?= JSON.stringify(Utils.DATA_DUKUNG_MAP) ?>');
+    let currentAction = 'submit';
+
+    function setAction(act) {
+        currentAction = act;
+    }
+
+    function hitungNeto() {
+        const bruto = parseFloat(document.getElementById('nilai_bruto').value) || 0;
+        const pajak = parseFloat(document.getElementById('potongan_pajak').value) || 0;
+        const neto = Math.max(0, bruto - pajak);
+        document.getElementById('nilai_neto').value = neto;
+    }
+
+    function renderDataDukungFields() {
+        const kategori = document.getElementById('selectKategori').value;
+        const container = document.getElementById('containerDataDukung');
+        container.innerHTML = '';
+
+        if (!kategori || !dataDukungMap[kategori]) {
+            container.innerHTML = '<div class="alert alert-info py-2 small mb-0"><i class="bi bi-info-circle me-1"></i> Silakan pilih Kategori Pengajuan di atas.</div>';
+            return;
+        }
+
+        const docs = dataDukungMap[kategori];
+        let html = '<div class="row g-2">';
+        
+        docs.forEach((docName, index) => {
+            const fieldId = `data_dukung_${index}`;
+            html += `
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small fw-semibold text-dark mb-1">
+                        <i class="bi bi-file-earmark-text text-secondary me-1"></i> ${docName} <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-link-45deg"></i></span>
+                        <input type="url" id="${fieldId}" data-docname="${docName}" class="form-control input-data-dukung" placeholder="Tautan Drive ${docName}" required>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function handleFormSubmit(e) {
+        e.preventDefault();
+        const alertError = document.getElementById('alertError');
+        alertError.classList.add('d-none');
+        showLoading();
+
+        const form = e.target;
+        
+        // Kumpulkan data dukung links
+        const dataDukungInputs = document.querySelectorAll('.input-data-dukung');
+        const dataDukungList = [];
+        dataDukungInputs.forEach(input => {
+            dataDukungList.push({
+                nama_dokumen: input.getAttribute('data-docname'),
+                link_drive: input.value
+            });
+        });
+
+        const formData = {
+            no_pengajuan: form.no_pengajuan.value,
+            kategori_pengajuan: form.kategori_pengajuan.value,
+            nama_kegiatan: form.nama_kegiatan.value,
+            no_akun: form.no_akun.value,
+            jenis_belanja: form.jenis_belanja.value,
+            nilai_bruto: form.nilai_bruto.value,
+            potongan_pajak: form.potongan_pajak.value || 0,
+            nilai_neto: form.nilai_neto.value,
+            uraian_pembayaran: form.uraian_pembayaran.value,
+            link_google_drive: form.link_google_drive.value,
+            data_dukung_json: JSON.stringify(dataDukungList),
+            action: currentAction
+        };
+
+        google.script.run
+            .withSuccessHandler(function(res) {
+                hideLoading();
+                if (res && res.success) {
+                    window.location.href = "<?= scriptUrl; ?>?page=pengajuan";
+                } else {
+                    alertError.textContent = res ? res.message : 'Gagal menyimpan pengajuan.';
+                    alertError.classList.remove('d-none');
+                }
+            })
+            .withFailureHandler(function(err) {
+                hideLoading();
+                alertError.textContent = err.message || 'Terjadi kesalahan sistem.';
+                alertError.classList.remove('d-none');
+            })
+            .apiStorePengajuan(formData);
+    }
+</script>
+
+<? } ?>

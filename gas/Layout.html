@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>simonKeu BPVP Surakarta</title>
+    
+    <?!= include('CSS'); ?>
+</head>
+
+<body>
+
+    <?
+        var user = user || Auth.getCurrentUserAccess();
+        var unreadNotifications = NotifikasiService.getUnreadNotifications(user.email);
+        var allNotifications = NotifikasiService.getUserNotifications(user.email, 5);
+        var currentPage = pageParam || 'dashboard';
+        var scriptUrl = ScriptApp.getService().getUrl();
+    ?>
+
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom p-3 shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="<?= scriptUrl; ?>?page=dashboard" target="_top">
+                <i class="bi bi-wallet2 me-2"></i> simonKeu
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item <?= (currentPage === 'dashboard') ? 'active' : ''; ?>">
+                        <a class="nav-link" href="<?= scriptUrl; ?>?page=dashboard" target="_top">
+                            <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item <?= (currentPage.indexOf('pengajuan') > -1) ? 'active' : ''; ?>">
+                        <a class="nav-link" href="<?= scriptUrl; ?>?page=pengajuan" target="_top">
+                            <i class="bi bi-file-earmark-text me-1"></i> Daftar Pengajuan
+                        </a>
+                    </li>
+                    <li class="nav-item <?= (currentPage === 'anggaran') ? 'active' : ''; ?>">
+                        <a class="nav-link" href="<?= scriptUrl; ?>?page=anggaran" target="_top">
+                            <i class="bi bi-journal-check me-1"></i> Informasi Anggaran
+                        </a>
+                    </li>
+                    <? if (user.role === 'Admin Keuangan') { ?>
+                        <li class="nav-item <?= (currentPage === 'users') ? 'active' : ''; ?>">
+                            <a class="nav-link text-warning fw-semibold" href="<?= scriptUrl; ?>?page=users" target="_top">
+                                <i class="bi bi-people-fill me-1"></i> Kelola User
+                            </a>
+                        </li>
+                    <? } ?>
+                </ul>
+                <div class="d-flex align-items-center">
+                    
+                    <!-- Lonceng Notifikasi Dropdown -->
+                    <div class="dropdown me-3">
+                        <button class="btn btn-outline-light btn-sm rounded-pill position-relative dropdown-toggle border-0" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-bell-fill fs-5"></i>
+                            <? if (unreadNotifications.length > 0) { ?>
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="margin-top: 5px; margin-left: -5px;">
+                                    <?= unreadNotifications.length; ?>
+                                </span>
+                            <? } ?>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-0" aria-labelledby="notificationDropdown" style="width: 320px; font-size: 13px;">
+                            <li class="bg-primary text-white p-2 rounded-top fw-bold text-center">
+                                Pemberitahuan
+                            </li>
+                            <? if (allNotifications.length > 0) { ?>
+                                <? for (var i = 0; i < allNotifications.length; i++) { 
+                                    var notif = allNotifications[i];
+                                ?>
+                                    <li class="border-bottom p-2 bg-white">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="pe-2">
+                                                <span class="fw-bold d-block text-dark mb-1">
+                                                    <? if (!notif.is_read) { ?>
+                                                        <span class="badge bg-danger rounded-circle p-1 me-1" style="width: 6px; height: 6px; display: inline-block;"></span>
+                                                    <? } ?>
+                                                    <?= notif.title; ?>
+                                                </span>
+                                                <span class="text-muted d-block small" style="line-height: 1.3;"><?= notif.message; ?></span>
+                                                <span class="text-secondary d-block mt-1" style="font-size: 10px;"><?= notif.created_at; ?></span>
+                                            </div>
+                                            <? if (!notif.is_read) { ?>
+                                                <button onclick="markRead('<?= notif.id; ?>', this)" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" title="Tandai dibaca">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            <? } ?>
+                                        </div>
+                                    </li>
+                                <? } ?>
+                            <? } else { ?>
+                                <li class="p-3 text-center text-muted">
+                                    <i class="bi bi-bell-slash fs-4 d-block mb-1"></i> Tidak ada pemberitahuan baru
+                                </li>
+                            <? } ?>
+                        </ul>
+                    </div>
+
+                    <span class="text-white me-3 bg-white bg-opacity-10 py-1 px-3 rounded-pill small">
+                        <i class="bi bi-person-circle me-1"></i> <strong><?= user.name; ?></strong>
+                        (<?= user.role; ?>)
+                    </span>
+                    <a href="https://accounts.google.com/Logout" target="_blank" class="btn btn-outline-light btn-sm rounded-pill px-3">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Loading Spinner Overlay -->
+    <div id="loadingOverlay" class="spinner-overlay d-none">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5">
+        <?!= include(contentPage, { pageParam: pageParam, pageParams: pageParams, user: user }); ?>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('d-none');
+        }
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('d-none');
+        }
+
+        function markRead(id, btn) {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    if (res && res.success) {
+                        location.reload();
+                    }
+                })
+                .apiMarkNotificationAsRead(id);
+        }
+    </script>
+</body>
+
+</html>

@@ -21,9 +21,11 @@ return new class extends Migration {
             $table->string('no_rekening', 50)->nullable();
             $table->string('bank', 50)->nullable();
             $table->decimal('nilai_bruto', 15, 2)->default(0);
+            $table->decimal('potongan_pajak', 15, 2)->default(0);
             $table->decimal('nilai_neto', 15, 2)->default(0);
             $table->text('uraian_pembayaran')->nullable();
             $table->string('link_google_drive', 255);
+            $table->text('data_dukung_json')->nullable();
             $table->enum('status', ['Draft', 'Menunggu Verifikasi', 'Perlu Perbaikan', 'Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan'])->default('Draft');
             $table->text('catatan_koreksi')->nullable();
             $table->string('no_spm', 50)->nullable();

@@ -1,0 +1,547 @@
+<?
+    var reqId = (pageParams && pageParams.id) ? pageParams.id : '';
+    var pengajuan = null;
+    var errorMsg = null;
+    var user = user || Auth.getCurrentUserAccess();
+    var scriptUrl = ScriptApp.getService().getUrl();
+
+    try {
+        pengajuan = PengajuanService.getPengajuanDetail(reqId);
+    } catch(err) {
+        errorMsg = err.message || err.toString();
+    }
+
+    if (errorMsg) {
+?>
+    <div class="alert alert-danger shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> <?= errorMsg; ?>
+    </div>
+    <a href="<?= scriptUrl; ?>?page=pengajuan" class="btn btn-secondary rounded-pill px-4">
+        <i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar
+    </a>
+<? } else { 
+    var status = pengajuan.status;
+    var selisih = pengajuan.selisih_hari;
+
+    // Logic penentuan class stepper timeline (6 langkah)
+    var step1_class = 'completed';
+    var step2_class = 'pending';
+    var step3_class = 'pending';
+    var step4_class = 'pending';
+    var step5_class = 'pending';
+    var step6_class = 'pending';
+
+    // Step 2: Verifikasi
+    if (pengajuan.email_verifikator || ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(status) > -1) {
+        step2_class = 'completed';
+    } else if (status === 'Menunggu Verifikasi') {
+        step2_class = 'active';
+    } else if (status === 'Perlu Perbaikan' && pengajuan.email_verifikator) {
+        step2_class = 'warning';
+    }
+
+    // Step 3: PPK
+    if (pengajuan.email_ppk || ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(status) > -1) {
+        step3_class = 'completed';
+    } else if (status === 'Disetujui PPK') {
+        step3_class = 'active';
+    } else if (status === 'Perlu Perbaikan' && pengajuan.email_ppk) {
+        step3_class = 'warning';
+    }
+
+    // Step 4: SPM
+    if (pengajuan.email_operator_pembayaran || ['Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(status) > -1) {
+        step4_class = 'completed';
+    } else if (status === 'Diajukan ke SAKTI') {
+        step4_class = 'active';
+    }
+
+    // Step 5: Cair
+    if (['Dicairkan', 'Selesai'].indexOf(status) > -1) {
+        step5_class = 'completed';
+    } else if (status === 'Belum Terbit SP2D') {
+        step5_class = 'active';
+    }
+
+    // Step 6: Serah Terima
+    if (status === 'Selesai') {
+        step6_class = 'completed';
+    } else if (status === 'Dicairkan') {
+        step6_class = 'active';
+    }
+
+    var progress_width = '0%';
+    if (step6_class === 'completed') { progress_width = '90%'; }
+    else if (step5_class === 'completed') { progress_width = '72%'; }
+    else if (step4_class === 'completed') { progress_width = '54%'; }
+    else if (step3_class === 'completed') { progress_width = '36%'; }
+    else if (step2_class === 'completed') { progress_width = '18%'; }
+?>
+
+    <div class="card card-custom p-4 bg-white mb-4 shadow-sm">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+            <div>
+                <h3 class="fw-bold text-dark mb-0">Detail Pengajuan: <?= pengajuan.no_pengajuan; ?></h3>
+                <p class="text-muted mb-0 small">Lacak dan verifikasi berkas pengajuan SPJ</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="<?= scriptUrl; ?>?page=pengajuan" target="_top" class="btn btn-secondary btn-sm rounded-pill px-3">
+                    <i class="bi bi-arrow-left"></i> Kembali
+                </a>
+                <a href="<?= scriptUrl; ?>?page=cetak-pengajuan&id=<?= pengajuan.id; ?>" target="_blank" class="btn btn-dark btn-sm rounded-pill px-3">
+                    <i class="bi bi-printer"></i> Cetak Ringkasan
+                </a>
+            </div>
+        </div>
+
+        <!-- VISUAL STEPPER TIMELINE -->
+        <h5 class="fw-bold text-dark mb-4 text-center">
+            <i class="bi bi-geo-alt-fill text-primary"></i> Posisi Berkas SPJ Saat Ini
+        </h5>
+        
+        <div class="stepper-container">
+            <div class="stepper-line"></div>
+            <div class="stepper-line-progress" style="width: <?= progress_width; ?>;"></div>
+
+            <!-- Step 1 -->
+            <div class="stepper-item <?= step1_class; ?>">
+                <div class="stepper-icon">
+                    <i class="bi bi-file-earmark-plus-fill"></i>
+                </div>
+                <div class="stepper-label">Pemohon</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 120px;" title="<?= pengajuan.nama_pemohon; ?>"><?= pengajuan.nama_pemohon; ?></div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="stepper-item <?= step2_class; ?>">
+                <div class="stepper-icon">
+                    <? if (step2_class === 'completed') { ?> <i class="bi bi-check2"></i>
+                    <? } else if (step2_class === 'warning') { ?> <i class="bi bi-exclamation-triangle"></i>
+                    <? } else { ?> <i class="bi bi-shield-check"></i>
+                    <? } ?>
+                </div>
+                <div class="stepper-label">Verifikasi Keuangan</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
+                    <? if (pengajuan.nama_verifikator) { ?> <?= pengajuan.nama_verifikator; ?>
+                    <? } else if (step2_class === 'warning') { ?> Perlu Revisi
+                    <? } else { ?> ⏳ Menunggu
+                    <? } ?>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="stepper-item <?= step3_class; ?>">
+                <div class="stepper-icon">
+                    <? if (step3_class === 'completed') { ?> <i class="bi bi-check2"></i>
+                    <? } else if (step3_class === 'warning') { ?> <i class="bi bi-exclamation-triangle"></i>
+                    <? } else { ?> <i class="bi bi-file-earmark-person"></i>
+                    <? } ?>
+                </div>
+                <div class="stepper-label">Persetujuan PPK</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
+                    <? if (pengajuan.nama_ppk) { ?> <?= pengajuan.nama_ppk; ?>
+                    <? } else if (step3_class === 'warning') { ?> Ditolak PPK
+                    <? } else { ?> ⏳ Menunggu
+                    <? } ?>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="stepper-item <?= step4_class; ?>">
+                <div class="stepper-icon">
+                    <? if (step4_class === 'completed') { ?> <i class="bi bi-check2"></i>
+                    <? } else { ?> <i class="bi bi-send"></i>
+                    <? } ?>
+                </div>
+                <div class="stepper-label">Proses SAKTI (SPM)</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
+                    <? if (pengajuan.nama_operator_pembayaran) { ?> <?= pengajuan.nama_operator_pembayaran; ?>
+                    <? } else if (pengajuan.no_spm) { ?> SPM: <?= pengajuan.no_spm; ?>
+                    <? } else { ?> ⏳ Menunggu
+                    <? } ?>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="stepper-item <?= step5_class; ?>">
+                <div class="stepper-icon">
+                    <? if (step5_class === 'completed') { ?> <i class="bi bi-cash-coin"></i>
+                    <? } else { ?> <i class="bi bi-wallet2"></i>
+                    <? } ?>
+                </div>
+                <div class="stepper-label">Pencairan Bendahara</div>
+                <div class="stepper-sublabel" style="font-size: 11px; color: #adb5bd; margin-top: 2px;">
+                    <? if (['Dicairkan', 'Selesai'].indexOf(status) > -1) { ?>
+                        Lunas/Cair <? if (selisih !== null) { ?> (<?= selisih === 0 ? 'Hari H' : selisih + ' Hari'; ?>) <? } ?>
+                    <? } else { ?>
+                        ⏳ Menunggu <? if (selisih !== null) { ?> (<?= selisih === 0 ? 'Hari H' : selisih + ' Hari'; ?>) <? } ?>
+                    <? } ?>
+                </div>
+            </div>
+
+            <!-- Step 6 -->
+            <div class="stepper-item <?= step6_class; ?>">
+                <div class="stepper-icon">
+                    <? if (step6_class === 'completed') { ?> <i class="bi bi-check-circle-fill text-white"></i>
+                    <? } else { ?> <i class="bi bi-cash-stack"></i>
+                    <? } ?>
+                </div>
+                <div class="stepper-label">Penyerahan Uang</div>
+                <div class="stepper-sublabel" style="font-size: 11px; color: #adb5bd; margin-top: 2px;">
+                    <? if (status === 'Selesai') { ?> Selesai/Diserahkan
+                    <? } else if (status === 'Dicairkan') { ?> ⏳ Siap Diserahkan
+                    <? } else { ?> ⏳ Menunggu
+                    <? } ?>
+                </div>
+            </div>
+        </div>
+
+        <? if (selisih !== null) { ?>
+            <div class="bg-light p-3 rounded-3 border border-light-subtle d-flex align-items-center justify-content-between mb-4 shadow-sm">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                        <i class="bi bi-clock-history fs-4"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1 text-dark">Durasi Proses Pencairan Dana (SPM ➔ SP2D)</h6>
+                        <p class="text-muted mb-0 small">
+                            <? if (['Dicairkan', 'Selesai'].indexOf(pengajuan.status) > -1) { ?>
+                                SPM diajukan pada <strong><?= pengajuan.tgl_spm; ?></strong> dan dicairkan oleh Bendahara pada <strong><?= pengajuan.tgl_cair; ?></strong>. Total durasi pencairan: <span class="badge bg-success bg-opacity-10 text-success fw-bold px-2 py-1"><i class="bi bi-lightning-fill"></i> <?= selisih === 0 ? 'Hari yang sama (0 hari)' : selisih + ' hari'; ?></span>.
+                            <? } else { ?>
+                                SPM diajukan pada <strong><?= pengajuan.tgl_spm; ?></strong>. Saat ini sedang menunggu pencairan dari Bendahara selama <span class="badge bg-warning bg-opacity-10 text-warning fw-bold px-2 py-1"><i class="bi bi-hourglass-split"></i> <?= selisih === 0 ? 'Hari yang sama (0 hari)' : selisih + ' hari'; ?></span> berjalan.
+                            <? } ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        <? } ?>
+
+        <div class="row">
+            <!-- Informasi Dasar -->
+            <div class="col-md-6 mb-4">
+                <div class="bg-light p-4 rounded-3 border border-light-subtle h-100">
+                    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-info-circle-fill text-primary"></i> Informasi Dasar</h5>
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td width="35%" class="fw-semibold text-muted">Kegiatan</td>
+                            <td class="text-dark">: <?= pengajuan.nama_kegiatan; ?></td>
+                        </tr>
+                        <? if (pengajuan.kategori_pengajuan) { ?>
+                        <tr>
+                            <td class="fw-semibold text-muted">Kategori</td>
+                            <td class="text-dark">: <span class="badge bg-info bg-opacity-10 text-info px-2"><?= pengajuan.kategori_pengajuan; ?></span></td>
+                        </tr>
+                        <? } ?>
+                        <tr>
+                            <td class="fw-semibold text-muted">Nomor Akun</td>
+                            <td class="text-dark">: <?= pengajuan.no_akun; ?></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Jenis Belanja</td>
+                            <td class="text-dark">: <?= pengajuan.jenis_belanja; ?></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Uraian Pembayaran</td>
+                            <td class="text-dark">: <?= pengajuan.uraian_pembayaran || '-'; ?></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Rincian Keuangan & Pajak -->
+            <div class="col-md-6 mb-4">
+                <div class="bg-light p-4 rounded-3 border border-light-subtle h-100">
+                    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-cash-coin text-success"></i> Rincian Keuangan</h5>
+                    <table class="table table-sm table-borderless mb-3">
+                        <tr>
+                            <td width="35%" class="fw-semibold text-muted">Nilai Bruto</td>
+                            <td class="text-dark">: <?= pengajuan.nilai_bruto_formatted; ?></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Potongan Pajak</td>
+                            <td class="text-danger">: <?= pengajuan.potongan_pajak_formatted; ?></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Nilai Neto (Riil)</td>
+                            <td class="text-success fw-bold">: <?= pengajuan.nilai_neto_formatted; ?></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Folder Utama Drive</td>
+                            <td class="text-dark">: 
+                                <a href="<?= pengajuan.link_google_drive; ?>" target="_blank" class="btn btn-primary btn-sm rounded-pill py-0 px-3 text-white small">
+                                    <i class="bi bi-cloud-arrow-down-fill"></i> Buka Google Drive
+                                </a>
+                            </td>
+                        </tr>
+                        <? if (pengajuan.bukti_penyerahan) { ?>
+                        <tr>
+                            <td class="fw-semibold text-muted">Bukti Penyerahan</td>
+                            <td class="text-dark">: 
+                                <a href="<?= pengajuan.bukti_penyerahan; ?>" target="_blank" class="btn btn-success btn-sm rounded-pill py-0 px-3 text-white small">
+                                    <i class="bi bi-file-earmark-check-fill"></i> Buka Bukti Google Drive
+                                </a>
+                            </td>
+                        </tr>
+                        <? } ?>
+                    </table>
+
+                    <? if (pengajuan.no_spm || pengajuan.no_sp2d) { ?>
+                        <div class="border-top pt-2 mt-2">
+                            <table class="table table-sm table-borderless mb-0 small">
+                                <? if (pengajuan.no_spm) { ?>
+                                    <tr>
+                                        <td width="35%" class="fw-semibold text-muted">Nomor SPM</td>
+                                        <td class="text-dark">: <span class="badge bg-primary bg-opacity-10 text-primary px-2"><?= pengajuan.no_spm; ?></span></td>
+                                    </tr>
+                                <? } ?>
+                                <? if (pengajuan.no_sp2d) { ?>
+                                    <tr>
+                                        <td class="fw-semibold text-muted">Nomor SP2D</td>
+                                        <td class="text-dark">: <span class="badge bg-success bg-opacity-10 text-success px-2"><?= pengajuan.no_sp2d; ?></span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-semibold text-muted">Tanggal Cair</td>
+                                        <td class="text-dark">: <?= pengajuan.tgl_cair; ?></td>
+                                    </tr>
+                                <? } ?>
+                            </table>
+                        </div>
+                    <? } ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- DAFTAR DATA DUKUNG DOKUMEN SESUAI KATEGORI -->
+        <div class="card border-primary border-opacity-25 bg-light p-4 mb-4 shadow-sm">
+            <h5 class="fw-bold text-dark mb-3">
+                <i class="bi bi-folder-symlink-fill text-primary me-2"></i> Berkas Data Dukung Wajib (<?= pengajuan.kategori_pengajuan; ?>)
+            </h5>
+            <div class="row g-3">
+                <? if (pengajuan.data_dukung_list && pengajuan.data_dukung_list.length > 0) { ?>
+                    <? for (var d = 0; d < pengajuan.data_dukung_list.length; d++) { 
+                        var doc = pengajuan.data_dukung_list[d];
+                    ?>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary me-2"><?= d + 1; ?></span>
+                                    <strong class="text-dark small"><?= doc.nama_dokumen; ?></strong>
+                                </div>
+                                <? if (doc.link_drive) { ?>
+                                    <a href="<?= doc.link_drive; ?>" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-1 small">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Buka Tautan
+                                    </a>
+                                <? } else { ?>
+                                    <span class="badge bg-secondary">Belum diunggah</span>
+                                <? } ?>
+                            </div>
+                        </div>
+                    <? } ?>
+                <? } else { ?>
+                    <div class="col-12 text-muted small">Tidak ada data dukung tambahan khusus.</div>
+                <? } ?>
+            </div>
+        </div>
+
+        <? if (pengajuan.catatan_koreksi) { ?>
+            <div class="alert alert-danger shadow-sm rounded-3 mb-4">
+                <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Catatan Koreksi Perbaikan Berkas:</h6>
+                <p class="mb-0 small"><?= pengajuan.catatan_koreksi; ?></p>
+            </div>
+        <? } ?>
+
+        <!-- PANEL TINDAKAN VERIFIKATOR KEUANGAN -->
+        <? if (user.role === 'Verifikator Keuangan' && pengajuan.status === 'Menunggu Verifikasi') { ?>
+            <div class="card card-custom border-warning border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-shield-check text-warning"></i> Panel Verifikasi Administrasi Keuangan</h5>
+                <form id="formVerifikasi" onsubmit="submitVerifikasi(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Kelengkapan Dokumen Data Dukung (<?= pengajuan.kategori_pengajuan; ?>):</label>
+                        
+                        <div class="form-check mb-2">
+                            <input class="form-check-input border-secondary check-verifikasi" type="checkbox" id="checkAkun" required> 
+                            <label class="form-check-label small fw-semibold text-dark" for="checkAkun">
+                                Kesesuaian Nomor Akun DIPA (<?= pengajuan.no_akun; ?>) & Ketersediaan Pagu Anggaran
+                            </label>
+                        </div>
+
+                        <!-- CHECKLIST DINAMIS BERDASARKAN DOKUMEN WAJIB KATEGORI -->
+                        <? if (pengajuan.data_dukung_list && pengajuan.data_dukung_list.length > 0) { ?>
+                            <? for (var ck = 0; ck < pengajuan.data_dukung_list.length; ck++) { 
+                                var docCk = pengajuan.data_dukung_list[ck];
+                            ?>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input border-secondary check-verifikasi" type="checkbox" id="checkDoc_<?= ck; ?>" required> 
+                                    <label class="form-check-label small" for="checkDoc_<?= ck; ?>">
+                                        Kelengkapan & Kesesuaian Berkas: <strong><?= docCk.nama_dokumen; ?></strong>
+                                    </label>
+                                </div>
+                            <? } ?>
+                        <? } ?>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>
+                        <textarea id="catatanVerifikasi" class="form-control" rows="2" placeholder="Tulis catatan perbaikan di sini jika ada berkas yang kurang/salah..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" onclick="execVerifikasi('setuju')" class="btn btn-success rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-check-circle-fill"></i> Setujui & Teruskan ke PPK
+                        </button>
+                        <button type="button" onclick="execVerifikasi('perbaiki')" class="btn btn-warning rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-arrow-counterclockwise"></i> Kembalikan ke Bidang (Revisi)
+                        </button>
+                        <button type="button" onclick="execVerifikasi('tolak')" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> Ditolak Total
+                        </button>
+                    </div>
+                </form>
+            </div>
+        <? } ?>
+
+        <!-- PANEL TINDAKAN PPK -->
+        <? if (user.role === 'PPK' && pengajuan.status === 'Disetujui PPK') { ?>
+            <div class="card card-custom border-primary border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-file-earmark-person text-primary"></i> Panel Persetujuan Akhir Komitmen (PPK)</h5>
+                <form id="formPpk" onsubmit="submitPpk(event)">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Catatan PPK (Opsional)</label>
+                        <textarea id="catatanPpk" class="form-control" rows="2" placeholder="Tulis arahan atau catatan tambahan dari PPK..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" onclick="execPpk('setuju')" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-pencil-fill"></i> Beri Persetujuan Finansial
+                        </button>
+                        <button type="button" onclick="execPpk('tolak')" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> Tolak & Kembalikan ke Bidang
+                        </button>
+                    </div>
+                </form>
+            </div>
+        <? } ?>
+
+        <!-- PANEL TINDAKAN OPERATOR PEMBAYARAN -->
+        <? if (user.role === 'Operator Pembayaran' && pengajuan.status === 'Diajukan ke SAKTI') { ?>
+            <div class="card card-custom border-dark border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-send-fill text-dark"></i> Panel Input Nomor SPM (Aplikasi SAKTI)</h5>
+                <form id="formSpm" onsubmit="execRealisasiSpm(event)">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Nomor SPM SAKTI</label>
+                        <input type="text" id="no_spm" class="form-control" placeholder="Masukkan nomor SPM SAKTI (Contoh: 26054X...)" required>
+                    </div>
+                    <button type="submit" class="btn btn-dark rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-save-fill"></i> Simpan Nomor SPM
+                    </button>
+                </form>
+            </div>
+        <? } ?>
+
+        <!-- PANEL TINDAKAN BENDAHARA (KONFIRMASI CAIR SP2D) -->
+        <? if (user.role === 'Bendahara' && pengajuan.status === 'Belum Terbit SP2D') { ?>
+            <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-coin text-success"></i> Panel Konfirmasi Pencairan & Nomor SP2D</h5>
+                <form id="formSp2d" onsubmit="execRealisasiSp2d(event)">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Nomor SP2D (SAKTI)</label>
+                            <input type="text" id="no_sp2d" class="form-control" placeholder="Masukkan nomor SP2D dari KPPN..." required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Tanggal Pembayaran / Cair</label>
+                            <input type="date" id="tgl_cair" class="form-control" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm mt-2">
+                        <i class="bi bi-check-circle-fill"></i> Sudah Cair (Proses Pencairan Selesai)
+                    </button>
+                </form>
+            </div>
+        <? } ?>
+
+        <!-- PANEL PENYERAHAN UANG (BENDAHARA) -->
+        <? if (user.role === 'Bendahara' && pengajuan.status === 'Dicairkan') { ?>
+            <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-stack text-success"></i> Panel Penyerahan Uang & Upload Bukti Serah Terima</h5>
+                <form id="formBukti" onsubmit="execRealisasiBukti(event)">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Link Google Drive Tanda Bukti Penyerahan / Kuitansi Terima</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-google"></i></span>
+                            <input type="url" id="bukti_penyerahan" class="form-control border-0 shadow-sm" placeholder="Contoh: https://drive.google.com/..." required>
+                        </div>
+                        <div class="form-text text-muted small mt-2">
+                            Unggah berkas tanda bukti penyerahan uang (misal: scan kuitansi/tanda terima) ke Google Drive Anda, lalu masukkan linknya di atas.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm mt-2">
+                        <i class="bi bi-check-circle-fill"></i> Konfirmasi Uang Diserahkan (Proses Selesai)
+                    </button>
+                </form>
+            </div>
+        <? } ?>
+
+    </div>
+
+    <script>
+        const pengajuanId = '<?= pengajuan.id; ?>';
+
+        function execVerifikasi(act) {
+            if (act === 'setuju') {
+                const checks = document.querySelectorAll('.check-verifikasi');
+                for (let i = 0; i < checks.length; i++) {
+                    if (!checks[i].checked) {
+                        alert('Mohon centang seluruh checklist verifikasi kelengkapan dokumen data dukung terlebih dahulu.');
+                        return;
+                    }
+                }
+            }
+            const cat = document.getElementById('catatanVerifikasi').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiVerifikasi(pengajuanId, act, cat);
+        }
+
+        function execPpk(act) {
+            const cat = document.getElementById('catatanPpk').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiPpkApproval(pengajuanId, act, cat);
+        }
+
+        function execRealisasiSpm(e) {
+            e.preventDefault();
+            const noSpm = document.getElementById('no_spm').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiRealisasi(pengajuanId, { no_spm: noSpm });
+        }
+
+        function execRealisasiSp2d(e) {
+            e.preventDefault();
+            const noSp2d = document.getElementById('no_sp2d').value;
+            const tglCair = document.getElementById('tgl_cair').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiRealisasi(pengajuanId, { no_sp2d: noSp2d, tgl_cair: tglCair });
+        }
+
+        function execRealisasiBukti(e) {
+            e.preventDefault();
+            const bukti = document.getElementById('bukti_penyerahan').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiRealisasi(pengajuanId, { bukti_penyerahan: bukti });
+        }
+    </script>
+
+<? } ?>

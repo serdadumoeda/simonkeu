@@ -271,11 +271,15 @@
                             <td class="text-dark">: Rp {{ number_format($pengajuan->nilai_bruto, 0, ',', '.') }}</td>
                         </tr>
                         <tr>
-                            <td class="fw-semibold text-muted">Nilai Neto</td>
+                            <td class="fw-semibold text-muted">Potongan Pajak</td>
+                            <td class="text-danger">: Rp {{ number_format($pengajuan->potongan_pajak ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-muted">Nilai Neto (Riil)</td>
                             <td class="text-success fw-bold">: Rp {{ number_format($pengajuan->nilai_neto, 0, ',', '.') }}</td>
                         </tr>
                         <tr>
-                            <td class="fw-semibold text-muted">Dokumen Pendukung</td>
+                            <td class="fw-semibold text-muted">Folder Utama Drive</td>
                             <td class="text-dark">: 
                                 <a href="{{ $pengajuan->link_google_drive }}" target="_blank" class="btn btn-primary btn-sm rounded-pill py-0 px-3 text-white small">
                                     <i class="bi bi-cloud-arrow-down-fill"></i> Buka Google Drive
@@ -321,8 +325,54 @@
             </div>
         </div>
 
+        @php
+            $dataDukungMap = [
+                'GU/UP/TUP' => ['SPTB', 'Rincian POK', 'DRPP'],
+                'LS Kontrak' => ['Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
+                'LS Non Kontrak' => ['Rincian POK', 'Npwp', 'Rekening', 'Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
+                'LS banyak penerima' => ['SPTB', 'SK', 'Rincian POK', 'Pendaftaran suplier', 'Rekap pengajuan'],
+                'LS Bendahara' => ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran'],
+            ];
+            $dataDukungList = json_decode($pengajuan->data_dukung_json, true) ?? [];
+            if (empty($dataDukungList) && isset($dataDukungMap[$pengajuan->kategori_pengajuan])) {
+                foreach ($dataDukungMap[$pengajuan->kategori_pengajuan] as $doc) {
+                    $dataDukungList[] = ['nama_dokumen' => $doc, 'link_drive' => $pengajuan->link_google_drive];
+                }
+            }
+        @endphp
+
+        <!-- DAFTAR DATA DUKUNG DOKUMEN WAJIB -->
+        <div class="card border-primary border-opacity-25 bg-light p-4 mb-4 shadow-sm">
+            <h5 class="fw-bold text-dark mb-3">
+                <i class="bi bi-folder-symlink-fill text-primary me-2"></i> Berkas Data Dukung Wajib ({{ $pengajuan->kategori_pengajuan }})
+            </h5>
+            <div class="row g-3">
+                @if(count($dataDukungList) > 0)
+                    @foreach($dataDukungList as $idx => $doc)
+                        <div class="col-md-6">
+                            <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary me-2">{{ $idx + 1 }}</span>
+                                    <strong class="text-dark small">{{ $doc['nama_dokumen'] ?? '' }}</strong>
+                                </div>
+                                @if(!empty($doc['link_drive']))
+                                    <a href="{{ $doc['link_drive'] }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-1 small">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Buka Tautan
+                                    </a>
+                                @else
+                                    <span class="badge bg-secondary">Belum diunggah</span>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                @else
+                    <div class="col-12 text-muted small">Tidak ada data dukung tambahan khusus.</div>
+                @endif
+            </div>
+        </div>
+
         @if($pengajuan->catatan_koreksi)
-            <div class="alert alert-danger shadow-sm rounded-3">
+            <div class="alert alert-danger shadow-sm rounded-3 mb-4">
                 <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Catatan Koreksi Perbaikan Berkas:</h6>
                 <p class="mb-0 small">{{ $pengajuan->catatan_koreksi }}</p>
             </div>
@@ -337,15 +387,21 @@
                 <form action="{{ route('pengajuan.verifikasi', $pengajuan->id) }}" method="POST">
                     @csrf
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Kelengkapan:</label>
+                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Kelengkapan Dokumen Data Dukung ({{ $pengajuan->kategori_pengajuan }}):</label>
                         <div class="form-check mb-2">
-                            <input class="form-check-input border-secondary" type="checkbox" id="check1" required> 
-                            <label class="form-check-label small" for="check1">Kesesuaian Nomor Akun & Ketersediaan Anggaran DIPA</label>
+                            <input class="form-check-input border-secondary" type="checkbox" id="checkAkun" required> 
+                            <label class="form-check-label small fw-semibold text-dark" for="checkAkun">
+                                Kesesuaian Nomor Akun DIPA ({{ $pengajuan->no_akun }}) & Ketersediaan Pagu Anggaran
+                            </label>
                         </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input border-secondary" type="checkbox" id="check2" required> 
-                            <label class="form-check-label small" for="check2">Kelengkapan Dokumen Bukti & Nota SPJ Lengkap di Google Drive</label>
-                        </div>
+                        @foreach($dataDukungList as $cIdx => $cDoc)
+                            <div class="form-check mb-2">
+                                <input class="form-check-input border-secondary" type="checkbox" id="checkDoc_{{ $cIdx }}" required> 
+                                <label class="form-check-label small" for="checkDoc_{{ $cIdx }}">
+                                    Kelengkapan & Kesesuaian Berkas: <strong>{{ $cDoc['nama_dokumen'] ?? '' }}</strong>
+                                </label>
+                            </div>
+                        @endforeach
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>

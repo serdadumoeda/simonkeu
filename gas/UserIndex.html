@@ -1,0 +1,218 @@
+<?
+    var currentUser = user || Auth.getCurrentUserAccess();
+    if (currentUser.role !== 'Admin Keuangan') {
+?>
+    <div class="alert alert-danger shadow-sm">
+        <i class="bi bi-shield-slash-fill me-2"></i> Akses Ditolak: Hanya Admin Keuangan yang dapat mengelola user.
+    </div>
+<? } else { 
+    var users = UserService.getAllUsers();
+    var scriptUrl = ScriptApp.getService().getUrl();
+?>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-dark mb-1">Kelola Pengguna (User Management)</h2>
+        <p class="text-muted mb-0">Atur akun Google, Peran (Role RBAC), dan Bidang Kerja</p>
+    </div>
+    <button class="btn btn-warning shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalAddUser">
+        <i class="bi bi-person-plus-fill me-1"></i> Tambah User Baru
+    </button>
+</div>
+
+<div class="card card-custom bg-white shadow-sm overflow-hidden mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 14px;">
+            <thead class="table-light">
+                <tr>
+                    <th>Email Google</th>
+                    <th>Nama Pengguna</th>
+                    <th>Peran (Role)</th>
+                    <th>Bidang Kerja</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <? if (users.length > 0) { ?>
+                    <? for (var i = 0; i < users.length; i++) { 
+                        var u = users[i];
+                    ?>
+                        <tr>
+                            <td class="fw-bold text-dark"><?= u.email; ?></td>
+                            <td><?= u.nama; ?></td>
+                            <td><span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1"><?= u.role; ?></span></td>
+                            <td><?= u.bidang; ?></td>
+                            <td class="text-center">
+                                <? if (u.aktif) { ?>
+                                    <span class="badge bg-success rounded-pill">Aktif</span>
+                                <? } else { ?>
+                                    <span class="badge bg-secondary rounded-pill">Nonaktif</span>
+                                <? } ?>
+                            </td>
+                            <td class="text-center">
+                                <button onclick="editUser('<?= u.email; ?>', '<?= u.nama; ?>', '<?= u.role; ?>', '<?= u.bidang; ?>', <?= u.aktif; ?>)" class="btn btn-sm btn-outline-primary rounded-circle p-1 me-1" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <? if (u.email.toLowerCase() !== currentUser.email.toLowerCase()) { ?>
+                                    <button onclick="deleteUser('<?= u.email; ?>')" class="btn btn-sm btn-outline-danger rounded-circle p-1" title="Hapus">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                <? } ?>
+                            </td>
+                        </tr>
+                    <? } ?>
+                <? } else { ?>
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">Belum ada user terdaftar.</td>
+                    </tr>
+                <? } ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL TAMBAH USER -->
+<div class="modal fade" id="modalAddUser" tabindex="-1" aria-labelledby="modalAddUserLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold" id="modalAddUserLabel"><i class="bi bi-person-plus-fill me-1"></i> Tambah User Baru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form onsubmit="submitAddUser(event)">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Email Google (*.gmail.com / domain)</label>
+                        <input type="email" id="addEmail" class="form-control" placeholder="user@gmail.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nama Lengkap Pengguna</label>
+                        <input type="text" id="addNama" class="form-control" placeholder="Budi Santoso" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Peran / Hak Akses (Role)</label>
+                        <select id="addRole" class="form-select" required>
+                            <option value="Admin Keuangan">Admin Keuangan</option>
+                            <option value="Operator Bidang">Operator Bidang</option>
+                            <option value="Verifikator Keuangan">Verifikator Keuangan</option>
+                            <option value="PPK">PPK</option>
+                            <option value="Operator Pembayaran">Operator Pembayaran</option>
+                            <option value="Bendahara">Bendahara</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bidang Kerja</label>
+                        <input type="text" id="addBidang" class="form-control" placeholder="Contoh: Perencanaan / Pelatihan / None" value="None">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 shadow-sm">Simpan User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL EDIT USER -->
+<div class="modal fade" id="modalEditUser" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1"></i> Edit User</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form onsubmit="submitEditUser(event)">
+                <div class="modal-body p-4">
+                    <input type="hidden" id="editTargetEmail">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Email Google</label>
+                        <input type="email" id="editEmail" class="form-control bg-light" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nama Lengkap Pengguna</label>
+                        <input type="text" id="editNama" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Peran / Hak Akses (Role)</label>
+                        <select id="editRole" class="form-select" required>
+                            <option value="Admin Keuangan">Admin Keuangan</option>
+                            <option value="Operator Bidang">Operator Bidang</option>
+                            <option value="Verifikator Keuangan">Verifikator Keuangan</option>
+                            <option value="PPK">PPK</option>
+                            <option value="Operator Pembayaran">Operator Pembayaran</option>
+                            <option value="Bendahara">Bendahara</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bidang Kerja</label>
+                        <input type="text" id="editBidang" class="form-control" required>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editAktif">
+                        <label class="form-check-label fw-semibold" for="editAktif">Status Akun Aktif</label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function submitAddUser(e) {
+        e.preventDefault();
+        showLoading();
+        const data = {
+            email: document.getElementById('addEmail').value,
+            nama: document.getElementById('addNama').value,
+            role: document.getElementById('addRole').value,
+            bidang: document.getElementById('addBidang').value
+        };
+        google.script.run
+            .withSuccessHandler(function() { location.reload(); })
+            .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+            .apiAddUser(data);
+    }
+
+    function editUser(email, nama, role, bidang, aktif) {
+        document.getElementById('editTargetEmail').value = email;
+        document.getElementById('editEmail').value = email;
+        document.getElementById('editNama').value = nama;
+        document.getElementById('editRole').value = role;
+        document.getElementById('editBidang').value = bidang;
+        document.getElementById('editAktif').checked = aktif;
+        new bootstrap.Modal(document.getElementById('modalEditUser')).show();
+    }
+
+    function submitEditUser(e) {
+        e.preventDefault();
+        showLoading();
+        const targetEmail = document.getElementById('editTargetEmail').value;
+        const data = {
+            nama: document.getElementById('editNama').value,
+            role: document.getElementById('editRole').value,
+            bidang: document.getElementById('editBidang').value,
+            aktif: document.getElementById('editAktif').checked
+        };
+        google.script.run
+            .withSuccessHandler(function() { location.reload(); })
+            .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+            .apiUpdateUser(targetEmail, data);
+    }
+
+    function deleteUser(email) {
+        if (!confirm('Apakah Anda yakin ingin menghapus user ' + email + '?')) return;
+        showLoading();
+        google.script.run
+            .withSuccessHandler(function() { location.reload(); })
+            .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+            .apiDeleteUser(email);
+    }
+</script>
+
+<? } ?>

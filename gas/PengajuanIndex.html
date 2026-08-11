@@ -1,0 +1,152 @@
+<?
+    var filterParams = pageParams || {};
+    var data = PengajuanService.getPengajuanList(filterParams);
+    var user = user || Auth.getCurrentUserAccess();
+    var scriptUrl = ScriptApp.getService().getUrl();
+?>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-dark mb-1">Daftar Pengajuan SPJ</h2>
+        <p class="text-muted mb-0">Kelola dan lacak dokumen pengajuan kegiatan</p>
+    </div>
+    <div>
+        <? if (user.role === 'Operator Bidang') { ?>
+            <a href="<?= scriptUrl; ?>?page=buat-pengajuan" target="_top" class="btn btn-success shadow-sm rounded-pill px-4">
+                <i class="bi bi-plus-circle me-1"></i> Buat Pengajuan Baru
+            </a>
+        <? } ?>
+    </div>
+</div>
+
+<!-- FORM FILTER DATA -->
+<div class="card card-custom p-3 bg-white mb-4">
+    <form method="GET" action="<?= scriptUrl; ?>" target="_top" class="row g-2 align-items-center">
+        <input type="hidden" name="page" value="pengajuan">
+        
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold text-muted mb-1">Filter Bidang Kerja:</label>
+            <select name="bidang" class="form-select form-select-sm">
+                <option value="">-- Semua Bidang --</option>
+                <? for (var b = 0; b < data.daftarBidang.length; b++) { 
+                    var bd = data.daftarBidang[b];
+                ?>
+                    <option value="<?= bd; ?>" <?= (filterParams.bidang === bd) ? 'selected' : ''; ?>><?= bd; ?></option>
+                <? } ?>
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold text-muted mb-1">Filter Status Berkas:</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">-- Semua Status --</option>
+                <option value="Draft" <?= (filterParams.status === 'Draft') ? 'selected' : ''; ?>>Draft</option>
+                <option value="Menunggu Verifikasi" <?= (filterParams.status === 'Menunggu Verifikasi') ? 'selected' : ''; ?>>Menunggu Verifikasi</option>
+                <option value="Perlu Perbaikan" <?= (filterParams.status === 'Perlu Perbaikan') ? 'selected' : ''; ?>>Perlu Perbaikan</option>
+                <option value="Disetujui PPK" <?= (filterParams.status === 'Disetujui PPK') ? 'selected' : ''; ?>>Disetujui PPK</option>
+                <option value="Diajukan ke SAKTI" <?= (filterParams.status === 'Diajukan ke SAKTI') ? 'selected' : ''; ?>>Diajukan ke SAKTI</option>
+                <option value="Belum Terbit SP2D" <?= (filterParams.status === 'Belum Terbit SP2D') ? 'selected' : ''; ?>>Belum Terbit SP2D</option>
+                <option value="Dicairkan" <?= (filterParams.status === 'Dicairkan') ? 'selected' : ''; ?>>Dicairkan</option>
+                <option value="Selesai" <?= (filterParams.status === 'Selesai') ? 'selected' : ''; ?>>Selesai</option>
+            </select>
+        </div>
+
+        <div class="col-md-4 d-flex align-items-end gap-2 mt-3 mt-md-0">
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
+                <i class="bi bi-funnel"></i> Terapkan Filter
+            </button>
+            <a href="<?= scriptUrl; ?>?page=pengajuan" target="_top" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- TABEL DAFTAR PENGAJUAN -->
+<div class="card card-custom bg-white shadow-sm overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 14px;">
+            <thead class="table-light">
+                <tr>
+                    <th>No. Pengajuan</th>
+                    <th>Tanggal</th>
+                    <th>Bidang</th>
+                    <th>Nama Kegiatan</th>
+                    <th class="text-end">Nilai Neto</th>
+                    <th class="text-center">Berkas Drive</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <? if (data.items.length > 0) { ?>
+                    <? for (var i = 0; i < data.items.length; i++) { 
+                        var item = data.items[i];
+                        var badgeClass = 'bg-secondary';
+                        if (item.status === 'Menunggu Verifikasi') badgeClass = 'bg-warning text-dark';
+                        else if (item.status === 'Perlu Perbaikan') badgeClass = 'bg-danger';
+                        else if (item.status === 'Disetujui PPK') badgeClass = 'bg-info text-dark';
+                        else if (item.status === 'Diajukan ke SAKTI') badgeClass = 'bg-primary';
+                        else if (item.status === 'Belum Terbit SP2D') badgeClass = 'bg-dark';
+                        else if (item.status === 'Dicairkan' || item.status === 'Selesai') badgeClass = 'bg-success';
+                    ?>
+                        <tr>
+                            <td class="fw-bold text-dark"><?= item.no_pengajuan; ?></td>
+                            <td class="text-muted small"><?= item.tgl_pengajuan; ?></td>
+                            <td><span class="badge bg-light text-dark border"><?= item.bidang; ?></span></td>
+                            <td>
+                                <span class="fw-semibold text-dark"><?= item.nama_kegiatan; ?></span>
+                                <? if (item.kategori_pengajuan) { ?>
+                                    <br><span class="badge bg-info bg-opacity-10 text-info small" style="font-size: 10px;"><?= item.kategori_pengajuan; ?></span>
+                                <? } ?>
+                            </td>
+                            <td class="text-end fw-bold text-success"><?= item.nilai_neto; ?></td>
+                            <td class="text-center">
+                                <a href="<?= item.link_google_drive; ?>" target="_blank" class="btn btn-outline-primary btn-sm rounded-circle p-1" title="Buka Drive">
+                                    <i class="bi bi-google"></i>
+                                </a>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge <?= badgeClass; ?> rounded-pill px-3 py-1"><?= item.status; ?></span>
+                            </td>
+                            <td class="text-center">
+                                <a href="<?= scriptUrl; ?>?page=detail-pengajuan&id=<?= item.id; ?>" target="_top" class="btn btn-sm btn-custom-primary rounded-pill px-3">
+                                    <i class="bi bi-eye"></i> Detail
+                                </a>
+                            </td>
+                        </tr>
+                    <? } ?>
+                <? } else { ?>
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                            Tidak ada dokumen pengajuan yang ditemukan.
+                        </td>
+                    </tr>
+                <? } ?>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINASI -->
+    <? if (data.totalPages > 1) { ?>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+            <span class="small text-muted">
+                Menampilkan Halaman <strong><?= data.currentPage; ?></strong> dari <strong><?= data.totalPages; ?></strong> (Total <?= data.totalItems; ?> data)
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item <?= (data.currentPage <= 1) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?= scriptUrl; ?>?page=pengajuan&bidang=<?= filterParams.bidang||''; ?>&status=<?= filterParams.status||''; ?>&pageNo=<?= data.currentPage - 1; ?>" target="_top">Previous</a>
+                </li>
+                <? for (var p = 1; p <= data.totalPages; p++) { ?>
+                    <li class="page-item <?= (p === data.currentPage) ? 'active' : ''; ?>">
+                        <a class="page-link" href="<?= scriptUrl; ?>?page=pengajuan&bidang=<?= filterParams.bidang||''; ?>&status=<?= filterParams.status||''; ?>&pageNo=<?= p; ?>" target="_top"><?= p; ?></a>
+                    </li>
+                <? } ?>
+                <li class="page-item <?= (data.currentPage >= data.totalPages) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?= scriptUrl; ?>?page=pengajuan&bidang=<?= filterParams.bidang||''; ?>&status=<?= filterParams.status||''; ?>&pageNo=<?= data.currentPage + 1; ?>" target="_top">Next</a>
+                </li>
+            </ul>
+        </div>
+    <? } ?>
+</div>

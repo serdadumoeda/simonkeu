@@ -125,10 +125,28 @@ class PengajuanController extends Controller
             'no_akun' => 'required|string',
             'jenis_belanja' => 'required|string',
             'nilai_bruto' => 'required|numeric',
+            'potongan_pajak' => 'nullable|numeric',
             'nilai_neto' => 'required|numeric',
             'link_google_drive' => 'required|url',
-            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak',
+            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara',
         ]);
+
+        $potonganPajak = $request->filled('potongan_pajak') ? $request->potongan_pajak : 0;
+        $nilaiNeto = $request->filled('nilai_neto') ? $request->nilai_neto : max(0, $request->nilai_bruto - $potonganPajak);
+
+        $dataDukungJson = null;
+        if ($request->has('data_dukung') && is_array($request->data_dukung)) {
+            $dataDukungList = [];
+            foreach ($request->data_dukung as $docName => $link) {
+                if (!empty($docName)) {
+                    $dataDukungList[] = [
+                        'nama_dokumen' => $docName,
+                        'link_drive' => $link ?? ''
+                    ];
+                }
+            }
+            $dataDukungJson = json_encode($dataDukungList);
+        }
 
         $pengajuan = PengajuanLs::create([
             'no_pengajuan' => $request->no_pengajuan,
@@ -139,9 +157,11 @@ class PengajuanController extends Controller
             'no_akun' => $request->no_akun,
             'jenis_belanja' => $request->jenis_belanja,
             'nilai_bruto' => $request->nilai_bruto,
-            'nilai_neto' => $request->nilai_neto,
+            'potongan_pajak' => $potonganPajak,
+            'nilai_neto' => $nilaiNeto,
             'uraian_pembayaran' => $request->uraian_pembayaran,
             'link_google_drive' => $request->link_google_drive,
+            'data_dukung_json' => $dataDukungJson,
             'status' => $request->action == 'draft' ? 'Draft' : 'Menunggu Verifikasi',
             'kategori_pengajuan' => $request->kategori_pengajuan,
         ]);
