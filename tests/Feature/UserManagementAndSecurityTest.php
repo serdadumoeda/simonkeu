@@ -398,4 +398,75 @@ class UserManagementAndSecurityTest extends TestCase
         $this->assertEquals('Selesai', $pengajuan->status);
         $this->assertEquals('https://drive.google.com/file/d/receipt/view', $pengajuan->bukti_penyerahan);
     }
+
+    /**
+     * Test UPTD submission requires PIC UPTD verification before forwarding to Keuangan.
+     */
+    public function test_pic_uptd_verification_workflow(): void
+    {
+        $operatorUptd = User::create([
+            'name' => 'Operator_Cilacap',
+            'email' => 'operator.cilacap@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'UPTD Cilacap',
+        ]);
+
+        $picUptd = User::create([
+            'name' => 'PIC_Cilacap',
+            'email' => 'pic.cilacap@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'PIC UPTD',
+            'bidang' => 'UPTD Cilacap',
+        ]);
+
+        $verifikator = User::create([
+            'name' => 'Rina_Verifikator',
+            'email' => 'rina@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        // 1. Operator UPTD submits new pengajuan
+        $this->actingAs($operatorUptd);
+        $response = $this->post(route('pengajuan.store'), [
+            'no_pengajuan' => 'KU-UPTD-001',
+            'nama_kegiatan' => 'Pelatihan UPTD Cilacap',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 5000000,
+            'nilai_neto' => 4500000,
+            'uraian_pembayaran' => 'Honor instruktur UPTD',
+            'link_google_drive' => 'https://drive.google.com/file/d/uptd-test/view',
+            'action' => 'ajukan',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+
+        $pengajuan = PengajuanLs::where('no_pengajuan', 'KU-UPTD-001')->first();
+        $this->assertNotNull($pengajuan);
+        $this->assertEquals('Menunggu Verifikasi UPTD', $pengajuan->status);
+
+        // 2. PIC UPTD approves the submission
+        $this->actingAs($picUptd);
+        $response = $this->post(route('pengajuan.verifikasiPicUptd', $pengajuan->id), [
+            'action' => 'setuju',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+
+        $pengajuan->refresh();
+        $this->assertEquals('Menunggu Verifikasi', $pengajuan->status);
+        $this->assertEquals($picUptd->id, $pengajuan->pic_uptd_id);
+
+        // 3. Verifikator Keuangan approves
+        $this->actingAs($verifikator);
+        $response = $this->post(route('pengajuan.verifikasi', $pengajuan->id), [
+            'action' => 'setuju',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+
+        $pengajuan->refresh();
+        $this->assertEquals('Disetujui PPK', $pengajuan->status);
+    }
 }

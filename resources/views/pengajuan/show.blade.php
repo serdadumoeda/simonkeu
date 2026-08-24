@@ -257,6 +257,12 @@
                             <td class="fw-semibold text-muted">Uraian Pembayaran</td>
                             <td class="text-dark">: {{ $pengajuan->uraian_pembayaran }}</td>
                         </tr>
+                        @if($pengajuan->picUptd)
+                        <tr>
+                            <td class="fw-semibold text-muted">PIC Verifikator UPTD</td>
+                            <td class="text-dark">: <span class="badge bg-primary bg-opacity-10 text-primary px-2">{{ $pengajuan->picUptd->name }}</span></td>
+                        </tr>
+                        @endif
                     </table>
                 </div>
             </div>
@@ -378,7 +384,67 @@
             </div>
         @endif
 
+        <!-- PANEL AJUKAN ULANG BERKAS UNTUK PEMOHON (JIKA PERLU PERBAIKAN) -->
+        @if(Auth::user()->role == 'Operator Bidang' && $pengajuan->user_id == Auth::id() && $pengajuan->status == 'Perlu Perbaikan')
+            <div class="card card-custom border-danger border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-arrow-counterclockwise text-danger"></i> Panel Perbaikan & Pengajuan Ulang Berkas</h5>
+                <form action="{{ route('pengajuan.resubmit', $pengajuan->id) }}" method="POST">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Tautan Google Drive Data Dukung (Dapat diperbarui jika ada berkas revisi)</label>
+                        <input type="url" name="link_google_drive" class="form-control" value="{{ old('link_google_drive', $pengajuan->link_google_drive) }}" required>
+                        <div class="form-text text-muted small">Pastikan berkas perbaikan sesuai catatan koreksi di atas telah diunggah ke Google Drive.</div>
+                    </div>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-send-check-fill me-1"></i> Simpan Perbaikan & Ajukan Ulang Berkas
+                    </button>
+                </form>
+            </div>
+        @endif
+
         <hr class="text-muted opacity-25">
+
+        <!-- PANEL TINDAKAN PIC UPTD -->
+        @if(Auth::user()->role == 'PIC UPTD' && $pengajuan->status == 'Menunggu Verifikasi UPTD')
+            <div class="card card-custom border-info border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-person-check-fill text-info"></i> Panel Verifikasi Internal PIC UPTD</h5>
+                <form action="{{ route('pengajuan.verifikasiPicUptd', $pengajuan->id) }}" method="POST">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Internal UPTD ({{ $pengajuan->kategori_pengajuan }}):</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input border-secondary" type="checkbox" id="checkPicAkun" required> 
+                            <label class="form-check-label small fw-semibold text-dark" for="checkPicAkun">
+                                Kesesuaian Program & Usulan Kegiatan UPTD ({{ $pengajuan->no_akun }})
+                            </label>
+                        </div>
+                        @foreach($dataDukungList as $cIdx => $cDoc)
+                            <div class="form-check mb-2">
+                                <input class="form-check-input border-secondary" type="checkbox" id="checkPicDoc_{{ $cIdx }}" required> 
+                                <label class="form-check-label small" for="checkPicDoc_{{ $cIdx }}">
+                                    Kelengkapan Berkas UPTD: <strong>{{ $cDoc['nama_dokumen'] ?? '' }}</strong>
+                                </label>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>
+                        <textarea name="catatan_koreksi" class="form-control" rows="2" placeholder="Tulis catatan perbaikan PIC UPTD jika ada berkas yang kurang..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="setuju" class="btn btn-info text-white rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-check-circle-fill"></i> Setujui & Teruskan ke Keuangan Pusat
+                        </button>
+                        <button type="submit" name="action" value="perbaiki" class="btn btn-warning rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-arrow-counterclockwise"></i> Kembalikan ke Operator UPTD (Revisi)
+                        </button>
+                        <button type="submit" name="action" value="tolak" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> Ditolak Total
+                        </button>
+                    </div>
+                </form>
+            </div>
+        @endif
 
         <!-- PANEL TINDAKAN VERIFIKATOR -->
         @if(Auth::user()->role == 'Verifikator Keuangan' && $pengajuan->status == 'Menunggu Verifikasi')
@@ -462,16 +528,29 @@
         @if(Auth::user()->role == 'Bendahara' && $pengajuan->status == 'Belum Terbit SP2D')
             <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-coin text-success"></i> Panel Konfirmasi Pencairan & Nomor SP2D</h5>
+                
+                <!-- UNGGAH FILE PDF SP2D UNTUK EXTRAKSI OTOMATIS -->
+                <div class="mb-4 p-3 bg-white border rounded-3 shadow-sm">
+                    <label class="form-label fw-bold small text-primary mb-1">
+                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Unggah Dokumen PDF SP2D (Pembacaan Otomatis)
+                    </label>
+                    <input type="file" id="sp2d_pdf_input" accept=".pdf" class="form-control form-control-sm">
+                    <div class="form-text text-muted small mt-1">
+                        Pilih file PDF SP2D resmi dari SAKTI/KPPN. Sistem akan mengekstrak <strong>Nomor SP2D</strong> dan <strong>Tanggal Cair</strong> secara otomatis.
+                    </div>
+                    <div id="sp2d_parse_status" class="mt-2 small fw-semibold"></div>
+                </div>
+
                 <form action="{{ route('pengajuan.realisasi', $pengajuan->id) }}" method="POST">
                     @csrf
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Nomor SP2D (Sakti)</label>
-                            <input type="text" name="no_sp2d" class="form-control" placeholder="Masukkan nomor SP2D dari KPPN..." required>
+                            <input type="text" name="no_sp2d" id="no_sp2d" class="form-control" placeholder="Masukkan atau upload PDF untuk isi otomatis..." required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Tanggal Pembayaran / Cair</label>
-                            <input type="date" name="tgl_cair" class="form-control" required>
+                            <input type="date" name="tgl_cair" id="tgl_cair" class="form-control" required>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm mt-2">
@@ -505,4 +584,96 @@
         @endif
 
     </div>
+
+    <!-- PDF.js Library for Automatic SP2D PDF Extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        const sp2dInputEl = document.getElementById('sp2d_pdf_input');
+        if (sp2dInputEl) {
+            sp2dInputEl.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const statusDiv = document.getElementById('sp2d_parse_status');
+                statusDiv.className = 'mt-2 small fw-semibold text-info';
+                statusDiv.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Membaca isi dokumen PDF SP2D...';
+
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const typedarray = new Uint8Array(this.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                        let countPromises = [];
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            countPromises.push(pdf.getPage(i).then(function(page) {
+                                return page.getTextContent().then(function(textContent) {
+                                    return textContent.items.map(s => s.str).join(' ');
+                                });
+                            }));
+                        }
+                        Promise.all(countPromises).then(function(pagesText) {
+                            const fullText = pagesText.join('\n');
+                            extractSp2dInfo(fullText);
+                        });
+                    }).catch(function(err) {
+                        statusDiv.className = 'mt-2 small fw-semibold text-danger';
+                        statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Gagal membaca PDF: ' + err.message;
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function extractSp2dInfo(text) {
+            const statusDiv = document.getElementById('sp2d_parse_status');
+            
+            // Patterns for SP2D Number
+            let sp2dMatch = text.match(/SP2D\s*[:\.\-]?\s*([0-9A-Z\/\-]{7,30})/i) || 
+                            text.match(/Nomor\s*:\s*([0-9A-Z\/\-]{7,30})/i) ||
+                            text.match(/\b(\d{14,16})\b/);
+
+            // Patterns for Date
+            let dateMatch = text.match(/\b(\d{2})[\/\-](\d{2})[\/\-](\d{4})\b/) || 
+                            text.match(/\b(\d{4})[\/\-](\d{2})[\/\-](\d{2})\b/);
+
+            let foundSp2d = null;
+            let foundDate = null;
+
+            if (sp2dMatch) {
+                foundSp2d = (sp2dMatch[1] || sp2dMatch[0]).trim();
+            }
+
+            if (dateMatch) {
+                if (dateMatch[1].length === 4) { // YYYY-MM-DD
+                    foundDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+                } else { // DD-MM-YYYY
+                    foundDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+                }
+            }
+
+            let msgs = [];
+            if (foundSp2d) {
+                const elNo = document.getElementById('no_sp2d');
+                if (elNo) elNo.value = foundSp2d;
+                msgs.push('Nomor SP2D: <strong>' + foundSp2d + '</strong>');
+            }
+
+            if (foundDate) {
+                const elDate = document.getElementById('tgl_cair');
+                if (elDate) elDate.value = foundDate;
+                msgs.push('Tanggal Cair: <strong>' + foundDate + '</strong>');
+            }
+
+            if (msgs.length > 0) {
+                statusDiv.className = 'mt-2 small fw-semibold text-success';
+                statusDiv.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Berhasil membaca PDF! ' + msgs.join(' | ');
+            } else {
+                statusDiv.className = 'mt-2 small fw-semibold text-warning';
+                statusDiv.innerHTML = '<i class="bi bi-exclamation-circle-fill me-1"></i> Teks PDF terbaca, namun nomor/tanggal SP2D tidak terdeteksi otomatis. Silakan isi manual.';
+            }
+        }
+    </script>
 @endsection

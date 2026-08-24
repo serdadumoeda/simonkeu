@@ -27,6 +27,7 @@ class PengajuanLs extends Model
         'uraian_pembayaran',
         'link_google_drive',
         'data_dukung_json',
+        'pic_uptd_id',
         'status',
         'tgl_spm',
         'bukti_penyerahan',
@@ -37,6 +38,10 @@ class PengajuanLs extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    public function picUptd()
+    {
+        return $this->belongsTo(User::class, 'pic_uptd_id');
     }
     public function verifikator()
     {

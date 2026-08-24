@@ -23,8 +23,14 @@ var PengajuanService = {
 
       if (user.role === 'Operator Bidang') {
         return item.bidang && item.bidang.toString().trim() === user.bidang.toString().trim();
-      } else if (user.role === 'Verifikator Keuangan') {
+      } else if (user.role === 'PIC UPTD') {
+        var bUser = user.bidang ? user.bidang.toString().trim() : '';
+        if (bUser !== 'UPTD' && bUser !== 'None' && bUser !== '') {
+          return item.bidang && item.bidang.toString().trim() === bUser && st !== 'Draft';
+        }
         return st !== 'Draft';
+      } else if (user.role === 'Verifikator Keuangan') {
+        return st !== 'Draft' && st !== 'Menunggu Verifikasi UPTD';
       } else if (user.role === 'PPK') {
         return ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan', 'Selesai'].indexOf(st) > -1;
       } else if (user.role === 'Operator Pembayaran') {
@@ -127,8 +133,16 @@ var PengajuanService = {
     var st = item.status ? item.status.toString().trim() : '';
     if (user.role === 'Operator Bidang' && item.bidang !== user.bidang) {
       throw new Error('Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
-    } else if (user.role === 'Verifikator Keuangan' && st === 'Draft') {
-      throw new Error('Akses Ditolak: Verifikator tidak dapat melihat dokumen berstatus Draft.');
+    } else if (user.role === 'PIC UPTD') {
+      var bUser = user.bidang ? user.bidang.toString().trim() : '';
+      if (bUser !== 'UPTD' && bUser !== 'None' && bUser !== '' && item.bidang !== bUser) {
+        throw new Error('Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
+      }
+      if (st === 'Draft') {
+        throw new Error('Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
+      }
+    } else if (user.role === 'Verifikator Keuangan' && (st === 'Draft' || st === 'Menunggu Verifikasi UPTD')) {
+      throw new Error('Akses Ditolak: Dokumen belum diverifikasi oleh PIC UPTD.');
     } else if (user.role === 'PPK' && ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan', 'Selesai'].indexOf(st) === -1) {
       throw new Error('Akses Ditolak: Dokumen belum diproses oleh Verifikator Keuangan.');
     } else if (user.role === 'Operator Pembayaran' && ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(st) === -1) {
@@ -234,7 +248,9 @@ var PengajuanService = {
     }
 
     var noPengajuan = data.no_pengajuan || Utils.generateNoPengajuan();
-    var statusAwal = data.action === 'draft' ? 'Draft' : 'Menunggu Verifikasi';
+    var userBidang = user.bidang ? user.bidang.toString() : '';
+    var isUptd = userBidang.toUpperCase().indexOf('UPTD') > -1 || userBidang.toUpperCase().indexOf('SATPEL') > -1;
+    var statusAwal = data.action === 'draft' ? 'Draft' : (isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi');
 
     var db = getDb();
     var sheet = db.getSheetByName('Pengajuan');
@@ -276,8 +292,18 @@ var PengajuanService = {
       data.data_dukung_json || '[]' // data_dukung_json (Col 28)
     ]);
 
-    // Kirim notifikasi jika diajukan ke Verifikator Keuangan
-    if (statusAwal === 'Menunggu Verifikasi') {
+    if (statusAwal === 'Menunggu Verifikasi UPTD') {
+      var allUsers = Utils.sheetToObjects('DaftarPengguna');
+      for (var i = 0; i < allUsers.length; i++) {
+        if (allUsers[i].role === 'PIC UPTD') {
+          NotifikasiService.createNotification(
+            allUsers[i].email,
+            'Pengajuan Baru Menunggu Verifikasi UPTD',
+            'Berkas ' + noPengajuan + ' (' + data.nama_kegiatan + ') menunggu verifikasi PIC UPTD Anda.'
+          );
+        }
+      }
+    } else if (statusAwal === 'Menunggu Verifikasi') {
       var allUsers = Utils.sheetToObjects('DaftarPengguna');
       for (var i = 0; i < allUsers.length; i++) {
         if (allUsers[i].role === 'Verifikator Keuangan') {
@@ -453,6 +479,51 @@ var PengajuanService = {
     }
 
     return { success: true, message: 'Data realisasi berhasil diperbarui.' };
+  },
+
+  verifikasiPicUptd: function (id, action, catatanKoreksi) {
+    var user = Auth.checkPermission(['PIC UPTD']);
+    var detail = PengajuanService.getPengajuanDetail(id);
+
+    var db = getDb();
+    var sheet = db.getSheetByName('Pengajuan');
+    var rowIndex = Utils.findRowIndexById('Pengajuan', 0, id);
+    if (rowIndex === -1) rowIndex = detail._rowIndex;
+
+    var statusBaru = '';
+    if (action === 'setuju') {
+      statusBaru = 'Menunggu Verifikasi';
+      var allUsers = Utils.sheetToObjects('DaftarPengguna');
+      for (var i = 0; i < allUsers.length; i++) {
+        if (allUsers[i].role === 'Verifikator Keuangan') {
+          NotifikasiService.createNotification(
+            allUsers[i].email,
+            'Pengajuan Lolos Verifikasi UPTD',
+            'Berkas ' + detail.no_pengajuan + ' telah diverifikasi oleh PIC UPTD dan menunggu verifikasi Keuangan Pusat.'
+          );
+        }
+      }
+    } else if (action === 'perbaiki') {
+      statusBaru = 'Perlu Perbaikan';
+      NotifikasiService.createNotification(
+        detail.email_pemohon,
+        'Revisi Berkas oleh PIC UPTD',
+        'Berkas ' + detail.no_pengajuan + ' perlu diperbaiki: ' + (catatanKoreksi || 'Periksa kelengkapan berkas UPTD.')
+      );
+    } else {
+      statusBaru = 'Draft';
+      NotifikasiService.createNotification(
+        detail.email_pemohon,
+        'Pengajuan Berkas Ditolak PIC UPTD',
+        'Berkas ' + detail.no_pengajuan + ' ditolak total oleh PIC UPTD dan dikembalikan ke Draft.'
+      );
+    }
+
+    sheet.getRange(rowIndex, 14).setValue(statusBaru);
+    sheet.getRange(rowIndex, 15).setValue(catatanKoreksi || '');
+    sheet.getRange(rowIndex, 26).setValue(new Date());
+
+    return { success: true, message: 'Status pengajuan berhasil diperbarui oleh PIC UPTD.' };
   }
 };
 
@@ -467,6 +538,9 @@ function apiGetPengajuanDetail(id) {
 }
 function apiStorePengajuan(formData) {
   return PengajuanService.storePengajuan(formData);
+}
+function apiVerifikasiPicUptd(id, action, catatanKoreksi) {
+  return PengajuanService.verifikasiPicUptd(id, action, catatanKoreksi);
 }
 function apiVerifikasi(id, action, catatanKoreksi) {
   return PengajuanService.verifikasi(id, action, catatanKoreksi);

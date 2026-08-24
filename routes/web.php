@@ -24,6 +24,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/buat-pengajuan', [PengajuanController::class, 'store'])->name('pengajuan.store');
 
     // --- PROSES PERSETUJUAN MULTI-ROLE ---
+    Route::post('/pengajuan/{id}/resubmit', [PengajuanController::class, 'resubmit'])->name('pengajuan.resubmit');
+    Route::post('/pengajuan/{id}/verifikasi-uptd', [PengajuanController::class, 'verifikasiPicUptd'])->name('pengajuan.verifikasiPicUptd');
     Route::post('/pengajuan/{id}/verifikasi', [PengajuanController::class, 'verifikasi'])->name('pengajuan.verifikasi');
     Route::post('/pengajuan/{id}/approval-ppk', [PengajuanController::class, 'ppkApproval'])->name('pengajuan.ppkApproval');
     Route::post('/pengajuan/{id}/realisasi', [PengajuanController::class, 'realisasi'])->name('pengajuan.realisasi');

@@ -350,6 +350,52 @@
             </div>
         <? } ?>
 
+        <!-- PANEL TINDAKAN PIC UPTD -->
+        <? if (user.role === 'PIC UPTD' && pengajuan.status === 'Menunggu Verifikasi UPTD') { ?>
+            <div class="card card-custom border-info border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-person-check-fill text-info"></i> Panel Verifikasi Internal PIC UPTD</h5>
+                <form id="formVerifikasiPicUptd" onsubmit="event.preventDefault();">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Internal UPTD (<?= pengajuan.kategori_pengajuan; ?>):</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input border-secondary check-verifikasi-uptd" type="checkbox" id="checkPicAkun" required> 
+                            <label class="form-check-label small fw-semibold text-dark" for="checkPicAkun">
+                                Kesesuaian Program & Usulan Kegiatan UPTD (<?= pengajuan.no_akun; ?>)
+                            </label>
+                        </div>
+                        <? if (pengajuan.data_dukung_list && pengajuan.data_dukung_list.length > 0) { ?>
+                            <? for (var ck = 0; ck < pengajuan.data_dukung_list.length; ck++) { 
+                                var docCk = pengajuan.data_dukung_list[ck];
+                            ?>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input border-secondary check-verifikasi-uptd" type="checkbox" id="checkPicDoc_<?= ck; ?>" required> 
+                                    <label class="form-check-label small" for="checkPicDoc_<?= ck; ?>">
+                                        Kelengkapan Berkas UPTD: <strong><?= docCk.nama_dokumen; ?></strong>
+                                    </label>
+                                </div>
+                            <? } ?>
+                        <? } ?>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>
+                        <textarea id="catatanVerifikasiUptd" class="form-control" rows="2" placeholder="Tulis catatan perbaikan PIC UPTD..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" onclick="execVerifikasiPicUptd('setuju')" class="btn btn-info text-white rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-check-circle-fill"></i> Setujui & Teruskan ke Keuangan Pusat
+                        </button>
+                        <button type="button" onclick="execVerifikasiPicUptd('perbaiki')" class="btn btn-warning rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-arrow-counterclockwise"></i> Kembalikan ke Operator UPTD (Revisi)
+                        </button>
+                        <button type="button" onclick="execVerifikasiPicUptd('tolak')" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> Ditolak Total
+                        </button>
+                    </div>
+                </form>
+            </div>
+        <? } ?>
+
         <!-- PANEL TINDAKAN VERIFIKATOR KEUANGAN -->
         <? if (user.role === 'Verifikator Keuangan' && pengajuan.status === 'Menunggu Verifikasi') { ?>
             <div class="card card-custom border-warning border-top border-4 p-4 bg-light mb-4 shadow-sm">
@@ -440,11 +486,24 @@
         <? if (user.role === 'Bendahara' && pengajuan.status === 'Belum Terbit SP2D') { ?>
             <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-coin text-success"></i> Panel Konfirmasi Pencairan & Nomor SP2D</h5>
+                
+                <!-- UNGGAH FILE PDF SP2D UNTUK EXTRAKSI OTOMATIS -->
+                <div class="mb-4 p-3 bg-white border rounded-3 shadow-sm">
+                    <label class="form-label fw-bold small text-primary mb-1">
+                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Unggah Dokumen PDF SP2D (Pembacaan Otomatis)
+                    </label>
+                    <input type="file" id="sp2d_pdf_input_gas" accept=".pdf" class="form-control form-control-sm">
+                    <div class="form-text text-muted small mt-1">
+                        Pilih file PDF SP2D resmi dari SAKTI/KPPN. Sistem akan mengekstrak <strong>Nomor SP2D</strong> dan <strong>Tanggal Cair</strong> secara otomatis.
+                    </div>
+                    <div id="sp2d_parse_status_gas" class="mt-2 small fw-semibold"></div>
+                </div>
+
                 <form id="formSp2d" onsubmit="execRealisasiSp2d(event)">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Nomor SP2D (SAKTI)</label>
-                            <input type="text" id="no_sp2d" class="form-control" placeholder="Masukkan nomor SP2D dari KPPN..." required>
+                            <input type="text" id="no_sp2d" class="form-control" placeholder="Masukkan atau upload PDF untuk isi otomatis..." required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Tanggal Pembayaran / Cair</label>
@@ -484,6 +543,24 @@
 
     <script>
         const pengajuanId = '<?= pengajuan.id; ?>';
+
+        function execVerifikasiPicUptd(act) {
+            if (act === 'setuju') {
+                const checks = document.querySelectorAll('.check-verifikasi-uptd');
+                for (let i = 0; i < checks.length; i++) {
+                    if (!checks[i].checked) {
+                        alert('Mohon centang seluruh checklist verifikasi kelengkapan dokumen data dukung UPTD terlebih dahulu.');
+                        return;
+                    }
+                }
+            }
+            const cat = document.getElementById('catatanVerifikasiUptd').value;
+            showLoading();
+            google.script.run
+                .withSuccessHandler(function() { location.reload(); })
+                .withFailureHandler(function(err) { hideLoading(); alert(err.message); })
+                .apiVerifikasiPicUptd(pengajuanId, act, cat);
+        }
 
         function execVerifikasi(act) {
             if (act === 'setuju') {
@@ -544,4 +621,95 @@
         }
     </script>
 
+    <!-- PDF.js Library for Automatic SP2D PDF Extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const sp2dGasInput = document.getElementById('sp2d_pdf_input_gas');
+            if (sp2dGasInput) {
+                sp2dGasInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const statusDiv = document.getElementById('sp2d_parse_status_gas');
+                    statusDiv.className = 'mt-2 small fw-semibold text-info';
+                    statusDiv.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Membaca isi dokumen PDF SP2D...';
+
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const typedarray = new Uint8Array(this.result);
+                        pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                            let countPromises = [];
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                countPromises.push(pdf.getPage(i).then(function(page) {
+                                    return page.getTextContent().then(function(textContent) {
+                                        return textContent.items.map(s => s.str).join(' ');
+                                    });
+                                }));
+                            }
+                            Promise.all(countPromises).then(function(pagesText) {
+                                const fullText = pagesText.join('\n');
+                                extractSp2dInfoGas(fullText);
+                            });
+                        }).catch(function(err) {
+                            statusDiv.className = 'mt-2 small fw-semibold text-danger';
+                            statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Gagal membaca PDF: ' + err.message;
+                        });
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+        });
+
+        function extractSp2dInfoGas(text) {
+            const statusDiv = document.getElementById('sp2d_parse_status_gas');
+            
+            let sp2dMatch = text.match(/SP2D\s*[:\.\-]?\s*([0-9A-Z\/\-]{7,30})/i) || 
+                            text.match(/Nomor\s*:\s*([0-9A-Z\/\-]{7,30})/i) ||
+                            text.match(/\b(\d{14,16})\b/);
+
+            let dateMatch = text.match(/\b(\d{2})[\/\-](\d{2})[\/\-](\d{4})\b/) || 
+                            text.match(/\b(\d{4})[\/\-](\d{2})[\/\-](\d{2})\b/);
+
+            let foundSp2d = null;
+            let foundDate = null;
+
+            if (sp2dMatch) {
+                foundSp2d = (sp2dMatch[1] || sp2dMatch[0]).trim();
+            }
+
+            if (dateMatch) {
+                if (dateMatch[1].length === 4) {
+                    foundDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+                } else {
+                    foundDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+                }
+            }
+
+            let msgs = [];
+            if (foundSp2d) {
+                const elNo = document.getElementById('no_sp2d');
+                if (elNo) elNo.value = foundSp2d;
+                msgs.push('Nomor SP2D: <strong>' + foundSp2d + '</strong>');
+            }
+
+            if (foundDate) {
+                const elDate = document.getElementById('tgl_cair');
+                if (elDate) elDate.value = foundDate;
+                msgs.push('Tanggal Cair: <strong>' + foundDate + '</strong>');
+            }
+
+            if (msgs.length > 0) {
+                statusDiv.className = 'mt-2 small fw-semibold text-success';
+                statusDiv.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Berhasil membaca PDF! ' + msgs.join(' | ');
+            } else {
+                statusDiv.className = 'mt-2 small fw-semibold text-warning';
+                statusDiv.innerHTML = '<i class="bi bi-exclamation-circle-fill me-1"></i> Teks PDF terbaca, namun nomor/tanggal SP2D tidak terdeteksi otomatis. Silakan isi manual.';
+            }
+        }
+    </script>
 <? } ?>

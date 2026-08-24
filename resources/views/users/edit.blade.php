@@ -45,6 +45,7 @@
                             <label class="form-label small fw-semibold">Role / Hak Akses</label>
                             <select name="role" class="form-select" required>
                                 <option value="Operator Bidang" {{ old('role', $user->role) == 'Operator Bidang' ? 'selected' : '' }}>Operator Bidang</option>
+                                <option value="PIC UPTD" {{ old('role', $user->role) == 'PIC UPTD' ? 'selected' : '' }}>PIC UPTD</option>
                                 <option value="Verifikator Keuangan" {{ old('role', $user->role) == 'Verifikator Keuangan' ? 'selected' : '' }}>Verifikator Keuangan</option>
                                 <option value="PPK" {{ old('role', $user->role) == 'PPK' ? 'selected' : '' }}>PPK</option>
                                 <option value="Operator Pembayaran" {{ old('role', $user->role) == 'Operator Pembayaran' ? 'selected' : '' }}>Operator Pembayaran</option>

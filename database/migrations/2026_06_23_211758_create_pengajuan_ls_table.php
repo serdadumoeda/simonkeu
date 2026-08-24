@@ -26,7 +26,8 @@ return new class extends Migration {
             $table->text('uraian_pembayaran')->nullable();
             $table->string('link_google_drive', 255);
             $table->text('data_dukung_json')->nullable();
-            $table->enum('status', ['Draft', 'Menunggu Verifikasi', 'Perlu Perbaikan', 'Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan'])->default('Draft');
+            $table->foreignId('pic_uptd_id')->nullable()->constrained('users')->onDelete('set null');
+            $table->enum('status', ['Draft', 'Menunggu Verifikasi UPTD', 'Menunggu Verifikasi', 'Perlu Perbaikan', 'Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'])->default('Draft');
             $table->text('catatan_koreksi')->nullable();
             $table->string('no_spm', 50)->nullable();
             $table->date('tgl_cair')->nullable();

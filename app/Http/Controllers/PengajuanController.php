@@ -26,6 +26,14 @@ class PengajuanController extends Controller
             // Operator HANYA melihat pengajuan milik bidangnya sendiri
             $query->where('bidang', $user->bidang);
 
+        } elseif ($user->role == 'PIC UPTD') {
+            // PIC UPTD HANYA melihat pengajuan milik UPTD/bidangnya yang bukan Draft
+            $query->where(function($q) use ($user) {
+                if ($user->bidang != 'UPTD' && $user->bidang != 'None') {
+                    $q->where('bidang', $user->bidang);
+                }
+            })->where('status', '!=', 'Draft');
+
         } elseif ($user->role == 'Verifikator Keuangan') {
             // Verifikator melihat dokumen yang sudah diajukan (bukan Draft)
             // Prioritas mereka adalah yang berstatus 'Menunggu Verifikasi'
@@ -148,11 +156,19 @@ class PengajuanController extends Controller
             $dataDukungJson = json_encode($dataDukungList);
         }
 
+        $userBidang = Auth::user()->bidang;
+        $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
+
+        $initialStatus = 'Draft';
+        if ($request->action != 'draft') {
+            $initialStatus = $isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi';
+        }
+
         $pengajuan = PengajuanLs::create([
             'no_pengajuan' => $request->no_pengajuan,
             'tgl_pengajuan' => now(),
             'user_id' => Auth::id(),
-            'bidang' => Auth::user()->bidang,
+            'bidang' => $userBidang,
             'nama_kegiatan' => $request->nama_kegiatan,
             'no_akun' => $request->no_akun,
             'jenis_belanja' => $request->jenis_belanja,
@@ -162,12 +178,27 @@ class PengajuanController extends Controller
             'uraian_pembayaran' => $request->uraian_pembayaran,
             'link_google_drive' => $request->link_google_drive,
             'data_dukung_json' => $dataDukungJson,
-            'status' => $request->action == 'draft' ? 'Draft' : 'Menunggu Verifikasi',
+            'status' => $initialStatus,
             'kategori_pengajuan' => $request->kategori_pengajuan,
         ]);
 
-        // Buat notifikasi jika diajukan ke Keuangan (Bukan Draft)
-        if ($pengajuan->status == 'Menunggu Verifikasi') {
+        if ($pengajuan->status == 'Menunggu Verifikasi UPTD') {
+            $pics = User::where('role', 'PIC UPTD')
+                ->where(function($q) use ($userBidang) {
+                    $q->where('bidang', $userBidang)
+                      ->orWhere('bidang', 'UPTD')
+                      ->orWhere('bidang', 'None');
+                })->get();
+
+            foreach ($pics as $pic) {
+                Notification::create([
+                    'user_id' => $pic->id,
+                    'title' => 'Pengajuan Baru Menunggu Verifikasi UPTD',
+                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' (' . $pengajuan->nama_kegiatan . ') menunggu verifikasi PIC UPTD Anda.',
+                    'is_read' => false,
+                ]);
+            }
+        } elseif ($pengajuan->status == 'Menunggu Verifikasi') {
             $verifikators = User::where('role', 'Verifikator Keuangan')->get();
             foreach ($verifikators as $v) {
                 Notification::create([
@@ -193,9 +224,16 @@ class PengajuanController extends Controller
             if ($pengajuan->bidang != $user->bidang) {
                 abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
             }
-        } elseif ($user->role == 'Verifikator Keuangan') {
+        } elseif ($user->role == 'PIC UPTD') {
+            if ($pengajuan->bidang != $user->bidang && $user->bidang != 'UPTD' && $user->bidang != 'None') {
+                abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
+            }
             if ($pengajuan->status == 'Draft') {
-                abort(403, 'Akses Ditolak: Verifikator tidak dapat melihat dokumen berstatus Draft.');
+                abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
+            }
+        } elseif ($user->role == 'Verifikator Keuangan') {
+            if ($pengajuan->status == 'Draft' || $pengajuan->status == 'Menunggu Verifikasi UPTD') {
+                abort(403, 'Akses Ditolak: Dokumen belum diverifikasi oleh PIC UPTD.');
             }
         } elseif ($user->role == 'PPK') {
             if (!in_array($pengajuan->status, ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan'])) {
@@ -212,6 +250,108 @@ class PengajuanController extends Controller
         }
 
         return view('pengajuan.show', compact('pengajuan'));
+    }
+
+    // 4.4 PROSES AJUKAN ULANG BERKAS REVISI (Oleh Operator Pemohon)
+    public function resubmit(Request $request, $id)
+    {
+        $pengajuan = PengajuanLs::findOrFail($id);
+        $user = Auth::user();
+
+        if ($user->role != 'Operator Bidang' || $pengajuan->user_id != $user->id) {
+            abort(403, 'Akses Ditolak: Hanya pemohon yang dapat mengajukan ulang berkas.');
+        }
+
+        if ($pengajuan->status != 'Perlu Perbaikan') {
+            return redirect()->back()->with('error', 'Berkas tidak dalam status Perlu Perbaikan.');
+        }
+
+        if ($request->filled('link_google_drive')) {
+            $pengajuan->link_google_drive = $request->link_google_drive;
+        }
+
+        $userBidang = $user->bidang;
+        $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
+
+        $pengajuan->status = $isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi';
+        $pengajuan->catatan_koreksi = null;
+        $pengajuan->save();
+
+        if ($pengajuan->status == 'Menunggu Verifikasi UPTD') {
+            $pics = User::where('role', 'PIC UPTD')->where(function($q) use ($userBidang) {
+                $q->where('bidang', $userBidang)->orWhere('bidang', 'UPTD')->orWhere('bidang', 'None');
+            })->get();
+
+            foreach ($pics as $pic) {
+                Notification::create([
+                    'user_id' => $pic->id,
+                    'title' => 'Pengajuan Revisi Siap Diverifikasi',
+                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diperbaiki oleh pemohon dan siap diverifikasi ulang oleh PIC UPTD.',
+                    'is_read' => false,
+                ]);
+            }
+        } else {
+            $verifikators = User::where('role', 'Verifikator Keuangan')->get();
+            foreach ($verifikators as $v) {
+                Notification::create([
+                    'user_id' => $v->id,
+                    'title' => 'Pengajuan Revisi Siap Diverifikasi',
+                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diperbaiki oleh pemohon dan siap diverifikasi ulang oleh Keuangan.',
+                    'is_read' => false,
+                ]);
+            }
+        }
+
+        return redirect()->route('pengajuan.show', $id)->with('success', 'Berkas pengajuan berhasil diperbaiki dan diajukan ulang.');
+    }
+
+    // 4.5 PROSES VERIFIKASI INTERNAL PIC UPTD
+    public function verifikasiPicUptd(Request $request, $id)
+    {
+        if (Auth::user()->role != 'PIC UPTD') {
+            abort(403, 'Akses Ditolak: Hanya PIC UPTD yang dapat melakukan verifikasi internal UPTD.');
+        }
+
+        $pengajuan = PengajuanLs::findOrFail($id);
+        $pengajuan->pic_uptd_id = Auth::id();
+
+        if ($request->action == 'setuju') {
+            $pengajuan->status = 'Menunggu Verifikasi'; // Teruskan ke Verifikator Keuangan Pusat
+            
+            // Kirim notifikasi ke Verifikator Keuangan
+            $verifikators = User::where('role', 'Verifikator Keuangan')->get();
+            foreach ($verifikators as $v) {
+                Notification::create([
+                    'user_id' => $v->id,
+                    'title' => 'Pengajuan Lolos Verifikasi UPTD',
+                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' (' . $pengajuan->nama_kegiatan . ') telah diverifikasi oleh PIC UPTD dan menunggu verifikasi Anda.',
+                    'is_read' => false,
+                ]);
+            }
+        } elseif ($request->action == 'perbaiki') {
+            $pengajuan->status = 'Perlu Perbaikan';
+            $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+            
+            Notification::create([
+                'user_id' => $pengajuan->user_id,
+                'title' => 'Revisi Berkas oleh PIC UPTD',
+                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan koreksi PIC UPTD: ' . $request->catatan_koreksi,
+                'is_read' => false,
+            ]);
+        } else {
+            $pengajuan->status = 'Draft';
+            $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+
+            Notification::create([
+                'user_id' => $pengajuan->user_id,
+                'title' => 'Pengajuan Berkas Ditolak PIC UPTD',
+                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' ditolak total oleh PIC UPTD dan dikembalikan ke Draft.',
+                'is_read' => false,
+            ]);
+        }
+
+        $pengajuan->save();
+        return redirect()->route('pengajuan.index')->with('success', 'Hasil verifikasi PIC UPTD berhasil disimpan.');
     }
 
     // 5. PROSES VERIFIKASI (Oleh Verifikator Keuangan)
