@@ -34,6 +34,12 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
 
     putenv("APP_ROUTES_CACHE=/tmp/bootstrap/cache/routes.php");
     $_ENV['APP_ROUTES_CACHE'] = '/tmp/bootstrap/cache/routes.php';
+    $_SERVER['APP_ROUTES_CACHE'] = '/tmp/bootstrap/cache/routes.php';
+
+    // Gunakan session driver cookie agar stateless & CSRF token bertahan di lingkungan serverless Vercel
+    putenv("SESSION_DRIVER=cookie");
+    $_ENV['SESSION_DRIVER'] = 'cookie';
+    $_SERVER['SESSION_DRIVER'] = 'cookie';
 
     // 2. Cek apakah ada konfigurasi PostgreSQL / DB Eksternal dari Vercel Environment
     $postgresUrl = getenv('POSTGRES_URL') ?: ($_ENV['POSTGRES_URL'] ?? ($_SERVER['POSTGRES_URL'] ?? null));
