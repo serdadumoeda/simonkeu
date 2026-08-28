@@ -160,7 +160,7 @@
                 </div>
             @endif
 
-            <form action="{{ url('/') }}" method="POST">
+            <form action="" method="POST">
                 @csrf
                 
                 <div class="input-group-custom">

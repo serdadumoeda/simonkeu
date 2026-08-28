@@ -41,6 +41,12 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
     $_ENV['SESSION_DRIVER'] = 'cookie';
     $_SERVER['SESSION_DRIVER'] = 'cookie';
 
+    // Pastikan APP_URL menggunakan HTTPS di Vercel agar form & cookie tidak terkena 308 redirect / 419 Page Expired
+    $host = $_SERVER['HTTP_HOST'] ?? 'simonkeu.vercel.app';
+    putenv("APP_URL=https://{$host}");
+    $_ENV['APP_URL'] = "https://{$host}";
+    $_SERVER['APP_URL'] = "https://{$host}";
+
     // 2. Cek apakah ada konfigurasi PostgreSQL / DB Eksternal dari Vercel Environment
     $postgresUrl = getenv('POSTGRES_URL') ?: ($_ENV['POSTGRES_URL'] ?? ($_SERVER['POSTGRES_URL'] ?? null));
     $postgresHost = getenv('POSTGRES_HOST') ?: ($_ENV['POSTGRES_HOST'] ?? ($_SERVER['POSTGRES_HOST'] ?? null));
