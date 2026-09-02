@@ -35,6 +35,10 @@ class UserController extends Controller
         ]);
 
         try {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+            } catch (\Throwable $e) {}
+
             $bidangVal = trim($request->bidang);
             if ($bidangVal === 'custom') {
                 $bidangVal = 'UPTD';
