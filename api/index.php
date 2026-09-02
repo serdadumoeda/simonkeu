@@ -96,6 +96,16 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
         } catch (\Throwable $e) {
             // Abaikan error auto-migrate jika sudah di-handle
         }
+    } else {
+        // Eksekusi auto-migrate untuk PostgreSQL / DB Eksternal di Vercel
+        try {
+            require_once __DIR__ . '/../vendor/autoload.php';
+            $app = require_once __DIR__ . '/../bootstrap/app.php';
+            $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+            $kernel->call('migrate', ['--force' => true]);
+        } catch (\Throwable $e) {
+            // Abaikan error auto-migrate jika sudah di-handle
+        }
     }
 }
 
