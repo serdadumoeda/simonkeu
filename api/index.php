@@ -75,7 +75,6 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
         $_SERVER['DB_DATABASE'] = $tmpDb;
     }
 }
-}
 
 // Forward Vercel requests to normal index.php
 require __DIR__ . '/../public/index.php';
