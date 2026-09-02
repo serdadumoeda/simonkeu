@@ -25,10 +25,11 @@ var PengajuanService = {
         return item.bidang && item.bidang.toString().trim() === user.bidang.toString().trim();
       } else if (user.role === 'PIC UPTD') {
         var bUser = user.bidang ? user.bidang.toString().trim() : '';
+        var isOwn = item.email_pemohon && item.email_pemohon.toString().trim().toLowerCase() === user.email.toString().trim().toLowerCase();
         if (bUser !== 'UPTD' && bUser !== 'None' && bUser !== '') {
-          return item.bidang && item.bidang.toString().trim() === bUser && st !== 'Draft';
+          return item.bidang && item.bidang.toString().trim() === bUser && (st !== 'Draft' || isOwn);
         }
-        return st !== 'Draft';
+        return st !== 'Draft' || isOwn;
       } else if (user.role === 'Verifikator Keuangan') {
         return st !== 'Draft' && st !== 'Menunggu Verifikasi UPTD';
       } else if (user.role === 'PPK') {
@@ -131,23 +132,26 @@ var PengajuanService = {
 
     // Cek Hak Akses
     var st = item.status ? item.status.toString().trim() : '';
-    if (user.role === 'Operator Bidang' && item.bidang !== user.bidang) {
+    var isOwner = item.email_pemohon && item.email_pemohon.toString().trim().toLowerCase() === user.email.toString().trim().toLowerCase();
+    if (user.role === 'Operator Bidang' && item.bidang !== user.bidang && !isOwner) {
       throw new Error('Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
     } else if (user.role === 'PIC UPTD') {
       var bUser = user.bidang ? user.bidang.toString().trim() : '';
-      if (bUser !== 'UPTD' && bUser !== 'None' && bUser !== '' && item.bidang !== bUser) {
-        throw new Error('Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
+      if (!isOwner) {
+        if (bUser !== 'UPTD' && bUser !== 'None' && bUser !== '' && item.bidang !== bUser) {
+          throw new Error('Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
+        }
+        if (st === 'Draft') {
+          throw new Error('Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
+        }
       }
-      if (st === 'Draft') {
-        throw new Error('Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
-      }
-    } else if (user.role === 'Verifikator Keuangan' && (st === 'Draft' || st === 'Menunggu Verifikasi UPTD')) {
+    } else if (user.role === 'Verifikator Keuangan' && (st === 'Draft' || st === 'Menunggu Verifikasi UPTD') && !isOwner) {
       throw new Error('Akses Ditolak: Dokumen belum diverifikasi oleh PIC UPTD.');
-    } else if (user.role === 'PPK' && ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan', 'Selesai'].indexOf(st) === -1) {
+    } else if (user.role === 'PPK' && ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan', 'Selesai'].indexOf(st) === -1 && !isOwner) {
       throw new Error('Akses Ditolak: Dokumen belum diproses oleh Verifikator Keuangan.');
-    } else if (user.role === 'Operator Pembayaran' && ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(st) === -1) {
+    } else if (user.role === 'Operator Pembayaran' && ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(st) === -1 && !isOwner) {
       throw new Error('Akses Ditolak: Dokumen belum disetujui oleh PPK.');
-    } else if (user.role === 'Bendahara' && ['Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(st) === -1) {
+    } else if (user.role === 'Bendahara' && ['Belum Terbit SP2D', 'Dicairkan', 'Selesai'].indexOf(st) === -1 && !isOwner) {
       throw new Error('Akses Ditolak: Dokumen belum diproses ke tahap pembayaran.');
     }
 
@@ -241,7 +245,7 @@ var PengajuanService = {
    * 3. Menyimpan Pengajuan Baru (Operator Bidang)
    */
   storePengajuan: function (data) {
-    var user = Auth.checkPermission(['Operator Bidang']);
+    var user = Auth.checkPermission(['Operator Bidang', 'PIC UPTD']);
 
     if (!data.nama_kegiatan || !data.no_akun || !data.jenis_belanja || !data.nilai_bruto || !data.link_google_drive || !data.kategori_pengajuan) {
       throw new Error('Semua kolom bertanda * wajib diisi.');

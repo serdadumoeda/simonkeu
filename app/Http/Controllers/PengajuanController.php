@@ -27,12 +27,15 @@ class PengajuanController extends Controller
             $query->where('bidang', $user->bidang);
 
         } elseif ($user->role == 'PIC UPTD') {
-            // PIC UPTD HANYA melihat pengajuan milik UPTD/bidangnya yang bukan Draft
+            // PIC UPTD melihat pengajuan milik UPTD/bidangnya (bukan Draft, kecuali yang dibuatnya sendiri)
             $query->where(function($q) use ($user) {
-                if ($user->bidang != 'UPTD' && $user->bidang != 'None') {
+                if ($user->bidang != 'UPTD' && $user->bidang != 'None' && !empty($user->bidang)) {
                     $q->where('bidang', $user->bidang);
                 }
-            })->where('status', '!=', 'Draft');
+            })->where(function($q) use ($user) {
+                $q->where('status', '!=', 'Draft')
+                  ->orWhere('user_id', $user->id);
+            });
 
         } elseif ($user->role == 'Verifikator Keuangan') {
             // Verifikator melihat dokumen yang sudah diajukan (bukan Draft)
@@ -102,8 +105,12 @@ class PengajuanController extends Controller
     // 2. FORM BUAT PENGAJUAN
     public function create()
     {
-        if (Auth::user()->role != 'Operator Bidang') {
-            abort(403, 'Akses Ditolak: Hanya Operator Bidang yang dapat membuat pengajuan.');
+        $user = Auth::user();
+        $userBidang = (string) ($user->bidang ?? '');
+        $isUptdUser = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL');
+
+        if ($user->role != 'Operator Bidang' && $user->role != 'PIC UPTD' && !$isUptdUser) {
+            abort(403, 'Akses Ditolak: Hanya Pemohon (Operator Bidang / UPTD) yang dapat membuat pengajuan.');
         }
 
         $tglBulanTahun = date('dmY');
@@ -123,8 +130,12 @@ class PengajuanController extends Controller
     // 3. SIMPAN PENGAJUAN BARU (Mendukung Tautan Google Drive)
     public function store(Request $request)
     {
-        if (Auth::user()->role != 'Operator Bidang') {
-            abort(403, 'Akses Ditolak: Hanya Operator Bidang yang dapat menyimpan pengajuan.');
+        $user = Auth::user();
+        $userBidang = (string) ($user->bidang ?? '');
+        $isUptdUser = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL');
+
+        if ($user->role != 'Operator Bidang' && $user->role != 'PIC UPTD' && !$isUptdUser) {
+            abort(403, 'Akses Ditolak: Hanya Pemohon (Operator Bidang / UPTD) yang dapat menyimpan pengajuan.');
         }
 
         $request->validate([
@@ -156,7 +167,6 @@ class PengajuanController extends Controller
             $dataDukungJson = json_encode($dataDukungList);
         }
 
-        $userBidang = Auth::user()->bidang;
         $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
 
         $initialStatus = 'Draft';
@@ -190,6 +200,10 @@ class PengajuanController extends Controller
                       ->orWhere('bidang', 'None');
                 })->get();
 
+            if ($pics->isEmpty()) {
+                $pics = User::where('role', 'PIC UPTD')->get();
+            }
+
             foreach ($pics as $pic) {
                 Notification::create([
                     'user_id' => $pic->id,
@@ -221,30 +235,32 @@ class PengajuanController extends Controller
 
         // Cek otorisasi berdasarkan role (sesuai filter pada index)
         if ($user->role == 'Operator Bidang') {
-            if ($pengajuan->bidang != $user->bidang) {
+            if ($pengajuan->bidang != $user->bidang && $pengajuan->user_id != $user->id) {
                 abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
             }
         } elseif ($user->role == 'PIC UPTD') {
-            if ($pengajuan->bidang != $user->bidang && $user->bidang != 'UPTD' && $user->bidang != 'None') {
-                abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
-            }
-            if ($pengajuan->status == 'Draft') {
-                abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
+            if ($pengajuan->user_id != $user->id) {
+                if ($pengajuan->bidang != $user->bidang && $user->bidang != 'UPTD' && $user->bidang != 'None') {
+                    abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
+                }
+                if ($pengajuan->status == 'Draft') {
+                    abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
+                }
             }
         } elseif ($user->role == 'Verifikator Keuangan') {
-            if ($pengajuan->status == 'Draft' || $pengajuan->status == 'Menunggu Verifikasi UPTD') {
+            if (($pengajuan->status == 'Draft' || $pengajuan->status == 'Menunggu Verifikasi UPTD') && $pengajuan->user_id != $user->id) {
                 abort(403, 'Akses Ditolak: Dokumen belum diverifikasi oleh PIC UPTD.');
             }
         } elseif ($user->role == 'PPK') {
-            if (!in_array($pengajuan->status, ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan'])) {
+            if (!in_array($pengajuan->status, ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan']) && $pengajuan->user_id != $user->id) {
                 abort(403, 'Akses Ditolak: Dokumen belum diproses oleh Verifikator Keuangan.');
             }
         } elseif ($user->role == 'Operator Pembayaran') {
-            if (!in_array($pengajuan->status, ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan'])) {
+            if (!in_array($pengajuan->status, ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan']) && $pengajuan->user_id != $user->id) {
                 abort(403, 'Akses Ditolak: Dokumen belum disetujui oleh PPK.');
             }
         } elseif ($user->role == 'Bendahara') {
-            if (!in_array($pengajuan->status, ['Belum Terbit SP2D', 'Dicairkan'])) {
+            if (!in_array($pengajuan->status, ['Belum Terbit SP2D', 'Dicairkan']) && $pengajuan->user_id != $user->id) {
                 abort(403, 'Akses Ditolak: Dokumen belum diproses ke tahap pembayaran.');
             }
         }
@@ -252,14 +268,14 @@ class PengajuanController extends Controller
         return view('pengajuan.show', compact('pengajuan'));
     }
 
-    // 4.4 PROSES AJUKAN ULANG BERKAS REVISI (Oleh Operator Pemohon)
+    // 4.4 PROSES AJUKAN ULANG BERKAS REVISI (Oleh Operator / Pemohon)
     public function resubmit(Request $request, $id)
     {
         $pengajuan = PengajuanLs::findOrFail($id);
         $user = Auth::user();
 
-        if ($user->role != 'Operator Bidang' || $pengajuan->user_id != $user->id) {
-            abort(403, 'Akses Ditolak: Hanya pemohon yang dapat mengajukan ulang berkas.');
+        if ($pengajuan->user_id != $user->id) {
+            abort(403, 'Akses Ditolak: Hanya pemohon dokumen yang dapat mengajukan ulang berkas.');
         }
 
         if ($pengajuan->status != 'Perlu Perbaikan') {
@@ -270,7 +286,7 @@ class PengajuanController extends Controller
             $pengajuan->link_google_drive = $request->link_google_drive;
         }
 
-        $userBidang = $user->bidang;
+        $userBidang = (string) ($user->bidang ?? '');
         $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
 
         $pengajuan->status = $isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi';
@@ -281,6 +297,10 @@ class PengajuanController extends Controller
             $pics = User::where('role', 'PIC UPTD')->where(function($q) use ($userBidang) {
                 $q->where('bidang', $userBidang)->orWhere('bidang', 'UPTD')->orWhere('bidang', 'None');
             })->get();
+
+            if ($pics->isEmpty()) {
+                $pics = User::where('role', 'PIC UPTD')->get();
+            }
 
             foreach ($pics as $pic) {
                 Notification::create([

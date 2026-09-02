@@ -469,4 +469,54 @@ class UserManagementAndSecurityTest extends TestCase
         $pengajuan->refresh();
         $this->assertEquals('Disetujui PPK', $pengajuan->status);
     }
+
+    /**
+     * Test PIC UPTD acting as pemohon can create, store, view, and resubmit pengajuan without 500 error.
+     */
+    public function test_uptd_pemohon_can_create_and_submit_pengajuan_without_error(): void
+    {
+        $picUptdPemohon = User::create([
+            'name' => 'Pemohon_UPTD_Semarang',
+            'email' => 'semarang@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'PIC UPTD',
+            'bidang' => 'UPTD Semarang',
+        ]);
+
+        $this->actingAs($picUptdPemohon);
+
+        // 1. Can access create page
+        $response = $this->get(route('pengajuan.create'));
+        $response->assertStatus(200);
+
+        // 2. Can store new pengajuan (verifies no MassAssignmentException on Notification)
+        $response = $this->post(route('pengajuan.store'), [
+            'no_pengajuan' => 'KU-UPTD-SMR-001',
+            'nama_kegiatan' => 'Kegiatan UPTD Semarang',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 2500000,
+            'nilai_neto' => 2250000,
+            'uraian_pembayaran' => 'Pembayaran UPTD',
+            'link_google_drive' => 'https://drive.google.com/file/d/smr-test/view',
+            'action' => 'ajukan',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+
+        $pengajuan = PengajuanLs::where('no_pengajuan', 'KU-UPTD-SMR-001')->first();
+        $this->assertNotNull($pengajuan);
+        $this->assertEquals('Menunggu Verifikasi UPTD', $pengajuan->status);
+        $this->assertEquals($picUptdPemohon->id, $pengajuan->user_id);
+
+        // 3. Can view detail of own pengajuan
+        $response = $this->get(route('pengajuan.show', $pengajuan->id));
+        $response->assertStatus(200);
+
+        // 4. Check notification was created successfully for PIC UPTD
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $picUptdPemohon->id,
+            'title' => 'Pengajuan Baru Menunggu Verifikasi UPTD',
+        ]);
+    }
 }
