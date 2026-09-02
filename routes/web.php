@@ -73,8 +73,8 @@ Route::get('/run-migrations-securely', function () {
             \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
             $output .= "\n" . \Illuminate\Support\Facades\Artisan::output();
         }
-        return "Success:<br>" . nl2br($output);
-    } catch (\Exception $e) {
+        return response("Success:<br>" . nl2br($output), 200);
+    } catch (\Throwable $e) {
         $output = \Illuminate\Support\Facades\Artisan::output();
         $envKeys = [];
         $allEnv = array_merge($_ENV, $_SERVER, getenv());
@@ -85,6 +85,6 @@ Route::get('/run-migrations-securely', function () {
                 $envKeys[] = "$key = $masked";
             }
         }
-        return "Failed: " . $e->getMessage() . "<br><br><b>Artisan Output:</b><br>" . nl2br($output) . "<br><br><b>SQL Queries Executed:</b><br><pre>" . implode("\n", $queries) . "</pre><br><b>Environment Variables (Filtered & Masked):</b><br>" . implode('<br>', $envKeys);
+        return response("Failed: " . $e->getMessage() . "<br><br><b>Artisan Output:</b><br>" . nl2br($output) . "<br><br><b>SQL Queries Executed:</b><br><pre>" . implode("\n", $queries) . "</pre><br><b>Environment Variables (Filtered & Masked):</b><br>" . implode('<br>', $envKeys), 200);
     }
 });
