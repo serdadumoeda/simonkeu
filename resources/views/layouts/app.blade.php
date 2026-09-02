@@ -184,19 +184,24 @@
 
     @php
         // Mengambil notifikasi khusus user yang login
-        $unreadNotifications = [];
-        $allNotifications = [];
+        $unreadNotifications = collect([]);
+        $allNotifications = collect([]);
         
         if (Auth::check()) {
-            $unreadNotifications = \App\Models\Notification::where('user_id', Auth::id())
-                ->where('is_read', false)
-                ->orderBy('created_at', 'desc')
-                ->get();
-                
-            $allNotifications = \App\Models\Notification::where('user_id', Auth::id())
-                ->orderBy('created_at', 'desc')
-                ->take(5)
-                ->get();
+            try {
+                $unreadNotifications = \App\Models\Notification::where('user_id', Auth::id())
+                    ->where('is_read', false)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                    
+                $allNotifications = \App\Models\Notification::where('user_id', Auth::id())
+                    ->orderBy('created_at', 'desc')
+                    ->take(5)
+                    ->get();
+            } catch (\Throwable $e) {
+                $unreadNotifications = collect([]);
+                $allNotifications = collect([]);
+            }
         }
     @endphp
 

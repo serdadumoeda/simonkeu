@@ -114,13 +114,23 @@ class PengajuanController extends Controller
         }
 
         $tglBulanTahun = date('dmY');
-        $pengajuanTerakhir = PengajuanLs::where('no_pengajuan', 'LIKE', "KU-$tglBulanTahun-%")
-            ->orderBy('no_pengajuan', 'desc')
-            ->first();
-
         $urutan = 1;
-        if ($pengajuanTerakhir) {
-            $urutan = (int) substr($pengajuanTerakhir->no_pengajuan, -3) + 1;
+        try {
+            $pengajuanTerakhir = PengajuanLs::where('no_pengajuan', 'LIKE', "KU-$tglBulanTahun-%")
+                ->orderBy('no_pengajuan', 'desc')
+                ->first();
+
+            if ($pengajuanTerakhir && !empty($pengajuanTerakhir->no_pengajuan)) {
+                $parts = explode('-', $pengajuanTerakhir->no_pengajuan);
+                $lastNum = end($parts);
+                if (is_numeric($lastNum)) {
+                    $urutan = (int) $lastNum + 1;
+                } else {
+                    $urutan = (int) substr($pengajuanTerakhir->no_pengajuan, -3) + 1;
+                }
+            }
+        } catch (\Throwable $e) {
+            $urutan = 1;
         }
         $noPengajuanBaru = "KU-" . $tglBulanTahun . "-" . str_pad($urutan, 3, '0', STR_PAD_LEFT);
 

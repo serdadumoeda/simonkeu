@@ -74,19 +74,23 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
         $_SERVER['DB_CONNECTION'] = 'sqlite';
         $_SERVER['DB_DATABASE'] = $tmpDb;
 
-        // Auto-migrate & seed SQLite jika tabel users belum ada di /tmp/database.sqlite
+        // Auto-migrate & seed SQLite di /tmp/database.sqlite
         try {
             if (file_exists($tmpDb)) {
+                require_once __DIR__ . '/../vendor/autoload.php';
+                $app = require_once __DIR__ . '/../bootstrap/app.php';
+                $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+                $kernel->call('migrate', ['--force' => true]);
+
                 $pdo = new PDO('sqlite:' . $tmpDb);
                 $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
                 $hasUsersTable = $stmt && $stmt->fetch();
-
-                if (!$hasUsersTable) {
-                    require_once __DIR__ . '/../vendor/autoload.php';
-                    $app = require_once __DIR__ . '/../bootstrap/app.php';
-                    $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
-                    $kernel->call('migrate', ['--force' => true]);
-                    $kernel->call('db:seed', ['--force' => true]);
+                if ($hasUsersTable) {
+                    $cntStmt = $pdo->query("SELECT COUNT(*) FROM users");
+                    $userCount = $cntStmt ? (int) $cntStmt->fetchColumn() : 0;
+                    if ($userCount === 0) {
+                        $kernel->call('db:seed', ['--force' => true]);
+                    }
                 }
             }
         } catch (\Throwable $e) {
