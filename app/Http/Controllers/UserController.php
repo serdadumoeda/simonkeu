@@ -16,32 +16,42 @@ class UserController extends Controller
             abort(403, 'Akses Ditolak');
         }
 
-        $users = User::all();
+        $users = User::orderBy('created_at', 'desc')->get();
         return view('users.index', compact('users'));
     }
 
     public function store(Request $request)
     {
-        if (Auth::user()->role != 'Admin Keuangan')
-            abort(403);
+        if (Auth::user()->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak');
+        }
 
         $request->validate([
-            'name' => 'required|unique:users',
-            'email' => 'required|email|unique:users',
+            'name' => 'required|unique:users,name',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|min:4',
-            'role' => 'required',
-            'bidang' => 'required',
+            'role' => 'required|string',
+            'bidang' => 'required|string',
         ]);
 
-        User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role,
-            'bidang' => $request->bidang,
-        ]);
+        try {
+            $bidangVal = trim($request->bidang);
+            if ($bidangVal === 'custom') {
+                $bidangVal = 'UPTD';
+            }
 
-        return back()->with('success', 'Akun pengguna baru berhasil ditambahkan!');
+            User::create([
+                'name' => trim($request->name),
+                'email' => trim($request->email),
+                'password' => Hash::make($request->password),
+                'role' => trim($request->role),
+                'bidang' => $bidangVal,
+            ]);
+
+            return redirect()->route('users.index')->with('success', 'Akun pengguna baru berhasil ditambahkan!');
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', 'Gagal menambahkan pengguna: ' . $e->getMessage());
+        }
     }
 
     public function edit($id)
@@ -66,22 +76,31 @@ class UserController extends Controller
             'name' => 'required|unique:users,name,' . $id,
             'email' => 'required|email|unique:users,email,' . $id,
             'password' => 'nullable|min:4',
-            'role' => 'required',
-            'bidang' => 'required',
+            'role' => 'required|string',
+            'bidang' => 'required|string',
         ]);
 
-        $user->name = $request->name;
-        $user->email = $request->email;
-        $user->role = $request->role;
-        $user->bidang = $request->bidang;
+        try {
+            $bidangVal = trim($request->bidang);
+            if ($bidangVal === 'custom') {
+                $bidangVal = 'UPTD';
+            }
 
-        if ($request->filled('password')) {
-            $user->password = Hash::make($request->password);
+            $user->name = trim($request->name);
+            $user->email = trim($request->email);
+            $user->role = trim($request->role);
+            $user->bidang = $bidangVal;
+
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
+            }
+
+            $user->save();
+
+            return redirect()->route('users.index')->with('success', 'Akun pengguna berhasil diperbarui!');
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', 'Gagal memperbarui pengguna: ' . $e->getMessage());
         }
-
-        $user->save();
-
-        return redirect()->route('users.index')->with('success', 'Akun pengguna berhasil diperbarui!');
     }
 
     public function destroy($id)
@@ -94,9 +113,13 @@ class UserController extends Controller
             return back()->with('error', 'Anda tidak dapat menghapus akun Anda sendiri yang sedang digunakan!');
         }
 
-        $user = User::findOrFail($id);
-        $user->delete();
+        try {
+            $user = User::findOrFail($id);
+            $user->delete();
 
-        return redirect()->route('users.index')->with('success', 'Akun pengguna berhasil dihapus!');
+            return redirect()->route('users.index')->with('success', 'Akun pengguna berhasil dihapus!');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menghapus pengguna: ' . $e->getMessage());
+        }
     }
 }
