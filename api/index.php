@@ -73,40 +73,8 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || getenv('VERCEL')) {
         $_ENV['DB_DATABASE'] = $tmpDb;
         $_SERVER['DB_CONNECTION'] = 'sqlite';
         $_SERVER['DB_DATABASE'] = $tmpDb;
-
-        // Auto-migrate & seed SQLite di /tmp/database.sqlite
-        try {
-            if (file_exists($tmpDb)) {
-                require_once __DIR__ . '/../vendor/autoload.php';
-                $app = require_once __DIR__ . '/../bootstrap/app.php';
-                $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
-                $kernel->call('migrate', ['--force' => true]);
-
-                $pdo = new PDO('sqlite:' . $tmpDb);
-                $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
-                $hasUsersTable = $stmt && $stmt->fetch();
-                if ($hasUsersTable) {
-                    $cntStmt = $pdo->query("SELECT COUNT(*) FROM users");
-                    $userCount = $cntStmt ? (int) $cntStmt->fetchColumn() : 0;
-                    if ($userCount === 0) {
-                        $kernel->call('db:seed', ['--force' => true]);
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            // Abaikan error auto-migrate jika sudah di-handle
-        }
-    } else {
-        // Eksekusi auto-migrate untuk PostgreSQL / DB Eksternal di Vercel
-        try {
-            require_once __DIR__ . '/../vendor/autoload.php';
-            $app = require_once __DIR__ . '/../bootstrap/app.php';
-            $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
-            $kernel->call('migrate', ['--force' => true]);
-        } catch (\Throwable $e) {
-            // Abaikan error auto-migrate jika sudah di-handle
-        }
     }
+}
 }
 
 // Forward Vercel requests to normal index.php
