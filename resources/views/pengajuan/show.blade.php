@@ -385,7 +385,11 @@
         @endif
 
         <!-- PANEL AJUKAN ULANG BERKAS UNTUK PEMOHON (JIKA PERLU PERBAIKAN) -->
-        @if(Auth::user()->role == 'Operator Bidang' && $pengajuan->user_id == Auth::id() && $pengajuan->status == 'Perlu Perbaikan')
+        @if(
+            (Auth::user()->role == 'Operator Bidang' || Auth::user()->role == 'PIC UPTD')
+            && $pengajuan->user_id == Auth::id()
+            && $pengajuan->status == 'Perlu Perbaikan'
+        )
             <div class="card card-custom border-danger border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <h5 class="fw-bold text-dark mb-3"><i class="bi bi-arrow-counterclockwise text-danger"></i> Panel Perbaikan & Pengajuan Ulang Berkas</h5>
                 <form action="{{ route('pengajuan.resubmit', $pengajuan->id) }}" method="POST">

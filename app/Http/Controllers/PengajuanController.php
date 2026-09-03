@@ -243,37 +243,35 @@ class PengajuanController extends Controller
         $pengajuan = PengajuanLs::findOrFail($id);
         $user = Auth::user();
 
-        // Cek otorisasi berdasarkan role (sesuai filter pada index)
+        // Admin Keuangan selalu bisa melihat semua pengajuan
+        if ($user->role == 'Admin Keuangan') {
+            return view('pengajuan.show', compact('pengajuan'));
+        }
+
+        // Pemilik dokumen selalu bisa melihat dokumen miliknya sendiri
+        if ($pengajuan->user_id == $user->id) {
+            return view('pengajuan.show', compact('pengajuan'));
+        }
+
+        // Cek otorisasi berdasarkan role
         if ($user->role == 'Operator Bidang') {
-            if ($pengajuan->bidang != $user->bidang && $pengajuan->user_id != $user->id) {
+            // Operator Bidang hanya melihat pengajuan dari bidangnya sendiri
+            if ($pengajuan->bidang != $user->bidang) {
                 abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
             }
         } elseif ($user->role == 'PIC UPTD') {
-            if ($pengajuan->user_id != $user->id) {
-                if ($pengajuan->bidang != $user->bidang && $user->bidang != 'UPTD' && $user->bidang != 'None') {
-                    abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
-                }
-                if ($pengajuan->status == 'Draft') {
-                    abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft.');
-                }
+            // PIC UPTD bisa melihat semua pengajuan UPTD (kecuali Draft milik orang lain)
+            $canViewByBidang = ($pengajuan->bidang == $user->bidang || $user->bidang == 'UPTD' || $user->bidang == 'None' || empty($user->bidang));
+            if (!$canViewByBidang) {
+                abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
             }
-        } elseif ($user->role == 'Verifikator Keuangan') {
-            if (($pengajuan->status == 'Draft' || $pengajuan->status == 'Menunggu Verifikasi UPTD') && $pengajuan->user_id != $user->id) {
-                abort(403, 'Akses Ditolak: Dokumen belum diverifikasi oleh PIC UPTD.');
-            }
-        } elseif ($user->role == 'PPK') {
-            if (!in_array($pengajuan->status, ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Perlu Perbaikan']) && $pengajuan->user_id != $user->id) {
-                abort(403, 'Akses Ditolak: Dokumen belum diproses oleh Verifikator Keuangan.');
-            }
-        } elseif ($user->role == 'Operator Pembayaran') {
-            if (!in_array($pengajuan->status, ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan']) && $pengajuan->user_id != $user->id) {
-                abort(403, 'Akses Ditolak: Dokumen belum disetujui oleh PPK.');
-            }
-        } elseif ($user->role == 'Bendahara') {
-            if (!in_array($pengajuan->status, ['Belum Terbit SP2D', 'Dicairkan']) && $pengajuan->user_id != $user->id) {
-                abort(403, 'Akses Ditolak: Dokumen belum diproses ke tahap pembayaran.');
+            // PIC UPTD tidak bisa lihat Draft milik orang lain
+            if ($pengajuan->status == 'Draft') {
+                abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft milik orang lain.');
             }
         }
+        // Verifikator Keuangan, PPK, Operator Pembayaran, Bendahara bisa melihat semua pengajuan
+        // (panel aksi di view blade sudah mengecek status yang relevan untuk ditampilkan)
 
         return view('pengajuan.show', compact('pengajuan'));
     }
