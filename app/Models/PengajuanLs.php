@@ -28,8 +28,16 @@ class PengajuanLs extends Model
         'link_google_drive',
         'data_dukung_json',
         'pic_uptd_id',
+        'verifikator_id',
+        'ppk_id',
+        'operator_pembayaran_id',
+        'bendahara_id',
         'status',
+        'catatan_koreksi',
+        'no_spm',
         'tgl_spm',
+        'no_sp2d',
+        'tgl_cair',
         'bukti_penyerahan',
         'kategori_pengajuan'
     ];
