@@ -670,7 +670,7 @@
                         <th class="py-3">Bidang / UPTD</th>
                         <th class="py-3">Nama Kegiatan</th>
                         <th class="py-3">Nilai Neto</th>
-                        <th class="py-3">Nomor SPM</th>
+                        <th class="py-3">No SPM dan Status</th>
                         <th class="text-center py-3" title="Batas waktu Verifikator Keuangan upload SPM (Max 2 Hari Kerja)">Upload SPM (2hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>
                         <th class="text-center py-3" title="Batas waktu Pemohon / UPTD upload berkas SPJ (Max 5 Hari Kerja)">SPJ Pemohon (5hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>
                         <th class="text-center py-3" title="Batas waktu Verifikator Keuangan verifikasi SPJ (Max 2 Hari Kerja)">Verif SPJ (2hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>

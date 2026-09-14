@@ -394,7 +394,7 @@
                     @else <i class="bi bi-cloud-arrow-up"></i>
                     @endif
                 </div>
-                <div class="stepper-label">Upload SPJ</div>
+                <div class="stepper-label">Upload SPM/SP2D</div>
                 <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
                     @if($step7_class == 'completed-green')
                         ✓ SPM/SP2D Uploaded
