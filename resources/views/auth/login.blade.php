@@ -16,8 +16,13 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, rgba(20, 38, 73, 0.85) 0%, rgba(29, 66, 138, 0.88) 100%), 
-                        url("{{ asset('images/bg-login.jpg') }}") no-repeat center center fixed / cover;
+            background-color: #1e3c72;
+            background-image: linear-gradient(135deg, rgba(20, 38, 73, 0.82) 0%, rgba(29, 66, 138, 0.88) 100%), 
+                              url("{{ asset('images/bg-login.jpg') }}");
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: cover;
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             align-items: center;
