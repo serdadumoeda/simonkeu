@@ -38,6 +38,7 @@ class UserManagementAndSecurityTest extends TestCase
             'password' => 'password123',
             'role' => 'Operator Bidang',
             'bidang' => 'Penyelenggara',
+            'no_wa' => '628123456789',
         ];
 
         $response = $this->post(route('users.store'), $newUserData);
@@ -150,6 +151,7 @@ class UserManagementAndSecurityTest extends TestCase
             'email' => 'new@bpvp.go.id',
             'role' => 'Verifikator Keuangan',
             'bidang' => 'Keuangan',
+            'no_wa' => '628123456789',
         ]);
 
         $response->assertRedirect(route('users.index'));
@@ -400,23 +402,15 @@ class UserManagementAndSecurityTest extends TestCase
     }
 
     /**
-     * Test UPTD submission requires PIC UPTD verification before forwarding to Keuangan.
+     * Test UPTD submission goes directly to Verifikator Keuangan.
      */
-    public function test_pic_uptd_verification_workflow(): void
+    public function test_uptd_submission_workflow_direct_to_verifikator_keuangan(): void
     {
         $operatorUptd = User::create([
             'name' => 'Operator_Cilacap',
             'email' => 'operator.cilacap@bpvp.go.id',
             'password' => bcrypt('password'),
             'role' => 'Operator Bidang',
-            'bidang' => 'UPTD Cilacap',
-        ]);
-
-        $picUptd = User::create([
-            'name' => 'PIC_Cilacap',
-            'email' => 'pic.cilacap@bpvp.go.id',
-            'password' => bcrypt('password'),
-            'role' => 'PIC UPTD',
             'bidang' => 'UPTD Cilacap',
         ]);
 
@@ -446,20 +440,9 @@ class UserManagementAndSecurityTest extends TestCase
 
         $pengajuan = PengajuanLs::where('no_pengajuan', 'KU-UPTD-001')->first();
         $this->assertNotNull($pengajuan);
-        $this->assertEquals('Menunggu Verifikasi UPTD', $pengajuan->status);
-
-        // 2. PIC UPTD approves the submission
-        $this->actingAs($picUptd);
-        $response = $this->post(route('pengajuan.verifikasiPicUptd', $pengajuan->id), [
-            'action' => 'setuju',
-        ]);
-        $response->assertRedirect(route('pengajuan.index'));
-
-        $pengajuan->refresh();
         $this->assertEquals('Menunggu Verifikasi', $pengajuan->status);
-        $this->assertEquals($picUptd->id, $pengajuan->pic_uptd_id);
 
-        // 3. Verifikator Keuangan approves
+        // 2. Verifikator Keuangan approves
         $this->actingAs($verifikator);
         $response = $this->post(route('pengajuan.verifikasi', $pengajuan->id), [
             'action' => 'setuju',
@@ -467,23 +450,31 @@ class UserManagementAndSecurityTest extends TestCase
         $response->assertRedirect(route('pengajuan.index'));
 
         $pengajuan->refresh();
-        $this->assertEquals('Disetujui PPK', $pengajuan->status);
+        $this->assertEquals('Proses Persetujuan PPK', $pengajuan->status);
     }
 
     /**
-     * Test PIC UPTD acting as pemohon can create, store, view, and resubmit pengajuan without 500 error.
+     * Test UPTD operator acting as pemohon can create, store, view, and resubmit pengajuan without 500 error.
      */
     public function test_uptd_pemohon_can_create_and_submit_pengajuan_without_error(): void
     {
-        $picUptdPemohon = User::create([
+        $verifikator = User::create([
+            'name' => 'Verifikator_Pusat',
+            'email' => 'verifikator.pusat@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $uptdPemohon = User::create([
             'name' => 'Pemohon_UPTD_Semarang',
             'email' => 'semarang@bpvp.go.id',
             'password' => bcrypt('password'),
-            'role' => 'PIC UPTD',
+            'role' => 'Operator Bidang',
             'bidang' => 'UPTD Semarang',
         ]);
 
-        $this->actingAs($picUptdPemohon);
+        $this->actingAs($uptdPemohon);
 
         // 1. Can access create page
         $response = $this->get(route('pengajuan.create'));
@@ -506,17 +497,300 @@ class UserManagementAndSecurityTest extends TestCase
 
         $pengajuan = PengajuanLs::where('no_pengajuan', 'KU-UPTD-SMR-001')->first();
         $this->assertNotNull($pengajuan);
-        $this->assertEquals('Menunggu Verifikasi UPTD', $pengajuan->status);
-        $this->assertEquals($picUptdPemohon->id, $pengajuan->user_id);
+        $this->assertEquals('Menunggu Verifikasi', $pengajuan->status);
+        $this->assertEquals($uptdPemohon->id, $pengajuan->user_id);
 
         // 3. Can view detail of own pengajuan
         $response = $this->get(route('pengajuan.show', $pengajuan->id));
         $response->assertStatus(200);
 
-        // 4. Check notification was created successfully for PIC UPTD
+        // 4. Check notification was created successfully for Verifikator Keuangan
         $this->assertDatabaseHas('notifications', [
-            'user_id' => $picUptdPemohon->id,
-            'title' => 'Pengajuan Baru Menunggu Verifikasi UPTD',
+            'user_id' => $verifikator->id,
+            'title' => 'Pengajuan Baru Menunggu Verifikasi',
         ]);
+    }
+
+    /**
+     * Test Admin Keuangan and Operator Pembayaran can record legacy SPM/SP2D pengajuan lampau.
+     */
+    public function test_admin_and_operator_pembayaran_can_record_legacy_pengajuan(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin_Super',
+            'email' => 'admin.legacy@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Admin Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $this->actingAs($admin);
+
+        // 1. Can access create lampau form
+        $response = $this->get(route('pengajuan.createLampau'));
+        $response->assertStatus(200);
+
+        // 2. Can submit legacy pengajuan
+        $response = $this->post(route('pengajuan.storeLampau'), [
+            'no_pengajuan' => 'KU-LAMPAU-001',
+            'tgl_pengajuan' => '2026-01-15',
+            'bidang' => 'Purworejo',
+            'kategori_pengajuan' => 'LS Bendahara',
+            'nama_kegiatan' => 'Pencairan SPJ Purworejo Masa Lalu',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 15000000,
+            'potongan_pajak' => 750000,
+            'nilai_neto' => 14250000,
+            'uraian_pembayaran' => 'Pembayaran SPJ Purworejo Januari 2026',
+            'no_spm' => 'SPM-2601-PUR',
+            'tgl_spm' => '2026-01-20',
+            'no_sp2d' => 'SP2D-2601-PUR',
+            'tgl_cair' => '2026-01-22',
+            'status' => 'Dicairkan',
+            'link_google_drive' => 'https://drive.google.com/folderview?id=legacy-purworejo',
+            'spj_status' => 'SPJ Lengkap',
+        ]);
+
+        $response->assertRedirect(route('pengajuan.index'));
+
+        // 3. Verify recorded data in database
+        $pengajuan = PengajuanLs::where('no_pengajuan', 'KU-LAMPAU-001')->first();
+        $this->assertNotNull($pengajuan);
+        $this->assertEquals('Purworejo', $pengajuan->bidang);
+        $this->assertEquals('Dicairkan', $pengajuan->status);
+        $this->assertEquals('SPM-2601-PUR', $pengajuan->no_spm);
+        $this->assertEquals('2026-01-20', $pengajuan->tgl_spm);
+        $this->assertEquals('SP2D-2601-PUR', $pengajuan->no_sp2d);
+        $this->assertEquals('2026-01-22', $pengajuan->tgl_cair);
+    }
+
+    /**
+     * Test Bendahara money handover sets 2-day verifikator deadline and sends notifications to Verifikator Keuangan.
+     */
+    public function test_verifikator_2_day_deadline_and_notifications(): void
+    {
+        $bendahara = User::create([
+            'name' => 'Bendahara_Test',
+            'email' => 'bendahara.test@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Bendahara',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $verifikator = User::create([
+            'name' => 'Verifikator_Test',
+            'email' => 'verifikator.test@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-TEST-2DAY-01',
+            'tgl_pengajuan' => now(),
+            'user_id' => $bendahara->id,
+            'bidang' => 'Keuangan',
+            'nama_kegiatan' => 'Kegiatan Handover Test',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 2000000,
+            'nilai_neto' => 1800000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Dicairkan',
+            'kategori_pengajuan' => 'LS Kontrak',
+        ]);
+
+        // Bendahara submits proof of handover
+        $this->actingAs($bendahara);
+        $response = $this->post(route('pengajuan.realisasi', $pengajuan->id), [
+            'bukti_penyerahan' => 'https://drive.google.com/file/d/receipt-test/view',
+        ]);
+
+        $response->assertRedirect(route('pengajuan.index'));
+
+        // Verify verifikator_spm_deadline is set to 2 days from now
+        $pengajuan->refresh();
+        $this->assertEquals('Selesai', $pengajuan->status);
+        $this->assertNotNull($pengajuan->verifikator_spm_deadline);
+
+        // Verify notification sent to Verifikator Keuangan
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $verifikator->id,
+            'title' => '⏱️ Tenggat 2 Hari Upload SPM/SP2D/SPP',
+        ]);
+    }
+
+    /**
+     * Test Verifikator SPM upload sets 5-day Pemohon SPJ deadline and sends notification to Pemohon.
+     */
+    public function test_pemohon_5_day_spj_deadline_and_green_red_indicators(): void
+    {
+        $pemohon = User::create([
+            'name' => 'Pemohon_Test_5D',
+            'email' => 'pemohon.5d@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        $verifikator = User::create([
+            'name' => 'Verifikator_Test_5D',
+            'email' => 'verifikator.5d@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-TEST-5DAY-01',
+            'tgl_pengajuan' => now(),
+            'user_id' => $pemohon->id,
+            'bidang' => 'Penyelenggara',
+            'nama_kegiatan' => 'Kegiatan SPJ 5D Test',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 3000000,
+            'nilai_neto' => 2700000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Selesai',
+            'spj_status' => 'Belum Upload',
+            'kategori_pengajuan' => 'LS Kontrak',
+        ]);
+
+        // Verifikator Keuangan uploads SPM/SP2D
+        $this->actingAs($verifikator);
+        $response = $this->post(route('pengajuan.uploadSpjVerifikator', $pengajuan->id), [
+            'spj_sp2d_link' => 'https://drive.google.com/file/d/sp2d/view',
+            'spj_spm_link' => 'https://drive.google.com/file/d/spm/view',
+        ]);
+
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+
+        // Verify spj_deadline is set to 5 days from now
+        $pengajuan->refresh();
+        $this->assertEquals('Menunggu Upload Pemohon', $pengajuan->spj_status);
+        $this->assertNotNull($pengajuan->spj_deadline);
+        
+        $diffDays = \Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($pengajuan->spj_deadline));
+        $this->assertTrue($diffDays >= 4 && $diffDays <= 5);
+
+        // Verify notification sent to Pemohon
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $pemohon->id,
+            'title' => '⏱️ Tenggat 5 Hari Upload SPJ Lengkap',
+        ]);
+    }
+
+    /**
+     * Test Pemohon SPJ upload sets 2-day verifikator SPJ verification deadline and sends notification to Verifikator Keuangan.
+     */
+    public function test_verifikator_2_day_spj_verification_deadline_and_indicators(): void
+    {
+        $pemohon = User::create([
+            'name' => 'Pemohon_Verif_Test',
+            'email' => 'pemohon.verif@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        $verifikator = User::create([
+            'name' => 'Verifikator_Verif_Test',
+            'email' => 'verifikator.verif@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-TEST-VERIF-01',
+            'tgl_pengajuan' => now(),
+            'user_id' => $pemohon->id,
+            'bidang' => 'Penyelenggara',
+            'nama_kegiatan' => 'Kegiatan Verif SPJ 2D Test',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 4000000,
+            'nilai_neto' => 3600000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Selesai',
+            'spj_status' => 'Menunggu Upload Pemohon',
+            'kategori_pengajuan' => 'LS Kontrak',
+        ]);
+
+        // Pemohon uploads SPJ Lengkap
+        $this->actingAs($pemohon);
+        $response = $this->post(route('pengajuan.uploadSpjPemohon', $pengajuan->id), [
+            'spj_lengkap_link' => 'https://drive.google.com/file/d/spj-lengkap-test/view',
+        ]);
+
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+
+        // Verify spj_verifikator_deadline is set to 2 days from now
+        $pengajuan->refresh();
+        $this->assertEquals('Menunggu Verifikasi SPJ', $pengajuan->spj_status);
+        $this->assertNotNull($pengajuan->spj_verifikator_deadline);
+
+        // Verify notification sent to Verifikator Keuangan
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $verifikator->id,
+            'title' => '⏱️ Tenggat 2 Hari Verifikasi SPJ Lengkap',
+        ]);
+    }
+
+    /**
+     * Test Kepala Balai role creation, login, executive dashboard access, and read-only pengajuan view.
+     */
+    public function test_kepala_balai_role_and_executive_dashboard(): void
+    {
+        $kepalaBalai = User::create([
+            'name' => 'Bapak_Kepala_Balai',
+            'email' => 'kepala.balai@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Kepala Balai',
+            'bidang' => 'None',
+        ]);
+
+        $pemohon = User::create([
+            'name' => 'Operator_Penyelenggara',
+            'email' => 'operator.penyelenggara@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-EXEC-TEST-001',
+            'tgl_pengajuan' => now(),
+            'user_id' => $pemohon->id,
+            'bidang' => 'Penyelenggara',
+            'nama_kegiatan' => 'Pelatihan Executive Monitoring Test',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 10000000,
+            'nilai_neto' => 9000000,
+            'link_google_drive' => 'https://drive.google.com/exec-test',
+            'status' => 'Menunggu Verifikasi',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+
+        $this->actingAs($kepalaBalai);
+
+        // 1. Can access Executive Dashboard
+        $response = $this->get(route('dashboard'));
+        $response->assertStatus(200);
+        $response->assertSee('Dashboard Executive Kepala Balai');
+        $response->assertSee('Skor Kepatuhan SLA');
+
+        // 2. Can view all pengajuan in index
+        $response = $this->get(route('pengajuan.index'));
+        $response->assertStatus(200);
+        $response->assertSee('KU-EXEC-TEST-001');
+
+        // 3. Can view detail of any pengajuan (Executive Oversight)
+        $response = $this->get(route('pengajuan.show', $pengajuan->id));
+        $response->assertStatus(200);
+        $response->assertSee('Pelatihan Executive Monitoring Test');
     }
 }

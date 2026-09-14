@@ -32,6 +32,7 @@ class UserController extends Controller
             'password' => 'required|min:4',
             'role' => 'required|string',
             'bidang' => 'required|string',
+            'no_wa' => 'required|string|max:30',
         ]);
 
         try {
@@ -50,6 +51,7 @@ class UserController extends Controller
                 'password' => Hash::make($request->password),
                 'role' => trim($request->role),
                 'bidang' => $bidangVal,
+                'no_wa' => trim($request->no_wa),
             ]);
 
             return redirect()->route('users.index')->with('success', 'Akun pengguna baru berhasil ditambahkan!');
@@ -82,6 +84,7 @@ class UserController extends Controller
             'password' => 'nullable|min:4',
             'role' => 'required|string',
             'bidang' => 'required|string',
+            'no_wa' => 'required|string|max:30',
         ]);
 
         try {
@@ -94,6 +97,7 @@ class UserController extends Controller
             $user->email = trim($request->email);
             $user->role = trim($request->role);
             $user->bidang = $bidangVal;
+            $user->no_wa = trim($request->no_wa);
 
             if ($request->filled('password')) {
                 $user->password = Hash::make($request->password);
@@ -125,5 +129,74 @@ class UserController extends Controller
         } catch (\Throwable $e) {
             return back()->with('error', 'Gagal menghapus pengguna: ' . $e->getMessage());
         }
+    }
+
+    // PENGATURAN AKUN USER (PROFIL SAYA)
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        $request->validate([
+            'name' => 'required|string|max:255|unique:users,name,' . $user->id,
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'nullable|min:4',
+            'no_wa' => 'required|string|max:30',
+        ]);
+
+        try {
+            $user->name = trim($request->name);
+            $user->email = trim($request->email);
+            $user->no_wa = trim($request->no_wa);
+
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
+            }
+
+            $user->save();
+
+            return back()->with('success', 'Pengaturan akun Anda berhasil diperbarui!');
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', 'Gagal memperbarui akun: ' . $e->getMessage());
+        }
+    }
+
+    // FITUR IMPERSONATE (INTIP AKSES USER OLEH SUPERADMIN)
+    public function impersonate($id)
+    {
+        $currentUser = Auth::user();
+
+        // Hanya Admin Keuangan (atau yang sedang mengintip dan punya impersonator_id) yang boleh mengintip
+        if ($currentUser->role != 'Admin Keuangan' && !session()->has('impersonator_id')) {
+            abort(403, 'Akses Ditolak: Hanya Admin Keuangan (Superadmin) yang dapat mengintip akses user.');
+        }
+
+        if ($id == Auth::id()) {
+            return back()->with('error', 'Anda sudah berada di akun ini.');
+        }
+
+        $targetUser = User::findOrFail($id);
+
+        // Simpan ID admin asli jika belum ada
+        if (!session()->has('impersonator_id')) {
+            session(['impersonator_id' => Auth::id()]);
+        }
+
+        // Switch login ke target user
+        Auth::loginUsingId($targetUser->id);
+
+        return redirect()->route('dashboard')->with('success', 'MODE INTIP AKTIF: Anda sekarang mengakses sistem sebagai ' . $targetUser->name . ' (' . $targetUser->role . ').');
+    }
+
+    public function stopImpersonate()
+    {
+        if (session()->has('impersonator_id')) {
+            $adminId = session('impersonator_id');
+            session()->forget('impersonator_id');
+            Auth::loginUsingId($adminId);
+
+            return redirect()->route('users.index')->with('success', 'MODE INTIP SELESAI: Anda telah kembali ke akun Admin Super.');
+        }
+
+        return redirect()->route('dashboard');
     }
 }

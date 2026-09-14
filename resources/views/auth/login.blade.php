@@ -9,20 +9,22 @@
     <!-- Google Fonts & Bootstrap CDN -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            height: 100vh;
+            background: linear-gradient(135deg, rgba(20, 38, 73, 0.85) 0%, rgba(29, 66, 138, 0.88) 100%), 
+                        url("{{ asset('images/bg-login.jpg') }}") no-repeat center center fixed / cover;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0;
-            overflow: hidden;
+            padding: 20px 0;
+            overflow-x: hidden;
             position: relative;
         }
 
@@ -30,12 +32,12 @@
         body::before {
             content: '';
             position: absolute;
-            width: 400px;
-            height: 400px;
+            width: 450px;
+            height: 450px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.03);
-            top: -100px;
-            left: -100px;
+            background: rgba(255, 255, 255, 0.04);
+            top: -120px;
+            left: -120px;
             z-index: 1;
         }
 
@@ -45,7 +47,7 @@
             width: 600px;
             height: 600px;
             border-radius: 50%;
-            background: rgba(255, 193, 7, 0.02);
+            background: rgba(255, 193, 7, 0.03);
             bottom: -200px;
             right: -200px;
             z-index: 1;
@@ -54,26 +56,79 @@
         .login-container {
             z-index: 10;
             width: 100%;
-            max-width: 440px;
+            max-width: 480px;
             padding: 15px;
         }
 
         .card-login {
             background: rgba(255, 255, 255, 0.95);
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            border-top: 5px solid #ffc107;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 24px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
             overflow: hidden;
         }
 
-        .brand-logo {
-            font-size: 2.2rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 5px;
+        /* Branding Logo Header Styling */
+        .brand-header {
+            text-align: center;
+            margin-bottom: 1.75rem;
+        }
+
+        .brand-icon-wrapper {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .brand-title {
+            font-size: 2.85rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+        }
+
+        .brand-title .simon {
+            color: #1b2e4b;
+        }
+
+        .brand-title .keu {
+            color: #1d66f2;
+        }
+
+        .system-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0.5rem 0;
+            gap: 12px;
+        }
+
+        .system-line {
+            height: 1.5px;
+            flex: 1;
+            background-color: #64748b;
+            opacity: 0.4;
+            max-width: 95px;
+        }
+
+        .system-label {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #334155;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-subtitle {
+            font-size: 0.925rem;
+            font-weight: 600;
+            color: #334155;
+            line-height: 1.45;
+            max-width: 370px;
+            margin: 0 auto;
         }
 
         .input-group-custom {
@@ -82,9 +137,9 @@
         }
 
         .input-group-custom .form-control {
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 12px 15px 12px 45px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 13px 15px 13px 45px;
             font-size: 0.95rem;
             transition: all 0.2s ease-in-out;
             background-color: #f8fafc;
@@ -92,8 +147,8 @@
 
         .input-group-custom .form-control:focus {
             background-color: #ffffff;
-            border-color: #1e3c72;
-            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.15);
+            border-color: #1d66f2;
+            box-shadow: 0 0 0 4px rgba(29, 102, 242, 0.12);
         }
 
         .input-group-custom .input-icon {
@@ -102,39 +157,40 @@
             top: 50%;
             transform: translateY(-50%);
             color: #94a3b8;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             z-index: 10;
             transition: color 0.2s;
         }
 
         .input-group-custom .form-control:focus + .input-icon {
-            color: #1e3c72;
+            color: #1d66f2;
         }
 
         .btn-login {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #1b2e4b 0%, #1d66f2 100%);
             border: none;
-            border-radius: 10px;
-            padding: 12px;
-            font-weight: 600;
-            font-size: 1rem;
+            border-radius: 12px;
+            padding: 13px;
+            font-weight: 700;
+            font-size: 1.025rem;
             color: #ffffff;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 10px rgba(30, 60, 114, 0.3);
+            box-shadow: 0 4px 14px rgba(29, 102, 242, 0.35);
         }
 
         .btn-login:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 15px rgba(30, 60, 114, 0.4);
-            background: linear-gradient(135deg, #152b52 0%, #1e3c72 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(29, 102, 242, 0.45);
+            background: linear-gradient(135deg, #15243b 0%, #1554cd 100%);
+            color: #ffffff;
         }
 
         .btn-login:active {
-            transform: translateY(1px);
+            transform: translateY(0);
         }
 
         .footer-text {
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.7);
             font-size: 0.85rem;
         }
     </style>
@@ -143,13 +199,39 @@
 <body>
     <div class="login-container">
         <div class="card card-login p-4 p-md-5">
-            <div class="text-center mb-4">
-                <div class="brand-logo d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi bi-wallet2 text-primary fs-3"></i>
-                    <span>simonKeu</span>
+            <div class="brand-header">
+                <!-- SVG Logo Icon based on provided image -->
+                <div class="brand-icon-wrapper">
+                    <svg width="76" height="82" viewBox="0 0 76 82" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Main Document Shape -->
+                        <rect x="12" y="12" width="52" height="64" rx="8" fill="#14223d"/>
+                        <!-- White Document Lines -->
+                        <rect x="23" y="27" width="24" height="4.5" rx="2" fill="#ffffff"/>
+                        <rect x="23" y="36" width="30" height="4.5" rx="2" fill="#ffffff"/>
+                        <rect x="23" y="45" width="18" height="4.5" rx="2" fill="#ffffff"/>
+                        <!-- Top Right Yellow Dot Badge -->
+                        <circle cx="56" cy="14" r="7" fill="#ffb700"/>
+                        <!-- Blue Checkmark -->
+                        <path d="M20 57 L34 70 L58 44" stroke="#1d66f2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <p class="text-secondary small px-2">Sistem Informasi Smart Administrasi Layanan Manajemen Keuangan BPVP Surakarta</p>
-                <hr class="mx-auto my-3 text-muted opacity-25" style="width: 80px;">
+
+                <!-- Brand Title (simon in dark navy, Keu in bright blue) -->
+                <div class="brand-title">
+                    <span class="simon">simon</span><span class="keu">Keu</span>
+                </div>
+
+                <!-- Sistem Divider -->
+                <div class="system-divider">
+                    <div class="system-line"></div>
+                    <span class="system-label">Sistem</span>
+                    <div class="system-line"></div>
+                </div>
+
+                <!-- Subtitle Description -->
+                <div class="brand-subtitle mt-2">
+                    Monitoring dan Pengendalian Dokumen Keuangan<br>di BPVP Surakarta
+                </div>
             </div>
 
             {{-- Menampilkan error jika login gagal --}}

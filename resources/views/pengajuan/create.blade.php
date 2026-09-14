@@ -151,6 +151,32 @@
                 </div>
             </div>
 
+            <!-- PRE-SUBMIT CHECKLIST UNTUK MEMINIMALISIR REVISI (LAYPERSON FRIENDLY) -->
+            <div class="card border-warning border-opacity-50 bg-warning bg-opacity-10 p-4 rounded-3 mb-4 shadow-sm">
+                <h6 class="fw-bold text-dark mb-2">
+                    <i class="bi bi-patch-check-fill text-warning me-1"></i> Checklist Mandiri Pemohon (Meminimalisir Revisi Berkas):
+                </h6>
+                <p class="text-muted small mb-3">Mohon periksa checklist di bawah sebelum mengirimkan berkas agar pengajuan Anda langsung disetujui tanpa pengembalian:</p>
+                <div class="form-check mb-2">
+                    <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_1">
+                    <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_1">
+                        Nomor Akun DIPA dan jenis belanja sudah dipastikan sesuai dengan Rencana Anggaran (POK).
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_2">
+                    <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_2">
+                        Link Google Drive sudah diatur ke izin akses terbuka (Siapa saja yang memiliki link / Kemenaker).
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_3">
+                    <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_3">
+                        Seluruh berkas data dukung wajib (SPTB, Kwitansi/Kwitansi Pembayaran, Rincian POK, dll) telah ter-upload lengkap.
+                    </label>
+                </div>
+            </div>
+
             <div class="d-flex gap-2">
                 <button type="submit" name="action" value="draft" class="btn btn-secondary rounded-pill px-4 shadow-sm">
                     <i class="bi bi-save"></i> Simpan Draft
@@ -215,7 +241,7 @@
 
             docs.forEach((docName) => {
                 html += `
-                    <div class="col-md-6 mb-2">
+                    <div class="col-12 mb-2">
                         <label class="form-label small fw-semibold text-dark mb-1">
                             <i class="bi bi-file-earmark-text me-1"></i> ${docName} <span class="text-danger">*</span>
                         </label>

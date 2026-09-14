@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\PengajuanLs;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -26,26 +27,14 @@ class PengajuanController extends Controller
             // Operator HANYA melihat pengajuan milik bidangnya sendiri
             $query->where('bidang', $user->bidang);
 
-        } elseif ($user->role == 'PIC UPTD') {
-            // PIC UPTD melihat pengajuan milik UPTD/bidangnya (bukan Draft, kecuali yang dibuatnya sendiri)
-            $query->where(function($q) use ($user) {
-                if ($user->bidang != 'UPTD' && $user->bidang != 'None' && !empty($user->bidang)) {
-                    $q->where('bidang', $user->bidang);
-                }
-            })->where(function($q) use ($user) {
-                $q->where('status', '!=', 'Draft')
-                  ->orWhere('user_id', $user->id);
-            });
-
         } elseif ($user->role == 'Verifikator Keuangan') {
             // Verifikator melihat dokumen yang sudah diajukan (bukan Draft)
-            // Prioritas mereka adalah yang berstatus 'Menunggu Verifikasi'
             $query->where('status', '!=', 'Draft');
 
         } elseif ($user->role == 'PPK') {
             // PPK HANYA melihat dokumen yang sudah lolos dari Verifikator dan seterusnya
             $query->whereIn('status', [
-                'Disetujui PPK',
+                'Proses Persetujuan PPK',
                 'Diajukan ke SAKTI',
                 'Belum Terbit SP2D',
                 'Dicairkan',
@@ -77,12 +66,33 @@ class PengajuanController extends Controller
         // =========================================================
         // FILTER TAMBAHAN DARI FORM PENCARIAN (DROPDOWN)
         // =========================================================
+        // Filter Tahun Anggaran (Default ke Tahun Berjalan)
+        $tahunAktif = $request->get('tahun', date('Y'));
+        if ($tahunAktif !== 'semua' && !empty($tahunAktif)) {
+            $query->whereYear('tgl_pengajuan', $tahunAktif);
+        }
+
         if ($request->filled('bidang')) {
             $query->where('bidang', $request->bidang);
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+
+        // Ambil daftar tahun unik secara dinamis dari database untuk filter
+        $tahunListDb = PengajuanLs::whereNotNull('tgl_pengajuan')
+            ->pluck('tgl_pengajuan')
+            ->map(function($d) {
+                return \Carbon\Carbon::parse($d)->format('Y');
+            })
+            ->unique()
+            ->toArray();
+
+        if (!in_array(date('Y'), $tahunListDb)) {
+            $tahunListDb[] = date('Y');
+        }
+        rsort($tahunListDb);
+        $daftarTahun = array_values($tahunListDb);
 
         // Ambil daftar bidang secara dinamis dari database untuk filter
         $daftarBidang = \App\Models\User::where('role', 'Operator Bidang')
@@ -99,17 +109,15 @@ class PengajuanController extends Controller
         $daftarPengajuan = $query->paginate(10);
 
         // Kirim data ke tampilan HTML (Blade)
-        return view('pengajuan.index', compact('daftarPengajuan', 'daftarBidang'));
+        return view('pengajuan.index', compact('daftarPengajuan', 'daftarBidang', 'daftarTahun', 'tahunAktif'));
     }
 
     // 2. FORM BUAT PENGAJUAN
     public function create()
     {
         $user = Auth::user();
-        $userBidang = (string) ($user->bidang ?? '');
-        $isUptdUser = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL');
 
-        if ($user->role != 'Operator Bidang' && $user->role != 'PIC UPTD' && !$isUptdUser) {
+        if ($user->role != 'Operator Bidang') {
             abort(403, 'Akses Ditolak: Hanya Pemohon (Operator Bidang / UPTD) yang dapat membuat pengajuan.');
         }
 
@@ -142,9 +150,8 @@ class PengajuanController extends Controller
     {
         $user = Auth::user();
         $userBidang = (string) ($user->bidang ?? '');
-        $isUptdUser = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL');
 
-        if ($user->role != 'Operator Bidang' && $user->role != 'PIC UPTD' && !$isUptdUser) {
+        if ($user->role != 'Operator Bidang') {
             abort(403, 'Akses Ditolak: Hanya Pemohon (Operator Bidang / UPTD) yang dapat menyimpan pengajuan.');
         }
 
@@ -177,11 +184,9 @@ class PengajuanController extends Controller
             $dataDukungJson = json_encode($dataDukungList);
         }
 
-        $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
-
         $initialStatus = 'Draft';
         if ($request->action != 'draft') {
-            $initialStatus = $isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi';
+            $initialStatus = 'Menunggu Verifikasi';
         }
 
         $pengajuan = PengajuanLs::create([
@@ -202,27 +207,7 @@ class PengajuanController extends Controller
             'kategori_pengajuan' => $request->kategori_pengajuan,
         ]);
 
-        if ($pengajuan->status == 'Menunggu Verifikasi UPTD') {
-            $pics = User::where('role', 'PIC UPTD')
-                ->where(function($q) use ($userBidang) {
-                    $q->where('bidang', $userBidang)
-                      ->orWhere('bidang', 'UPTD')
-                      ->orWhere('bidang', 'None');
-                })->get();
-
-            if ($pics->isEmpty()) {
-                $pics = User::where('role', 'PIC UPTD')->get();
-            }
-
-            foreach ($pics as $pic) {
-                Notification::create([
-                    'user_id' => $pic->id,
-                    'title' => 'Pengajuan Baru Menunggu Verifikasi UPTD',
-                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' (' . $pengajuan->nama_kegiatan . ') menunggu verifikasi PIC UPTD Anda.',
-                    'is_read' => false,
-                ]);
-            }
-        } elseif ($pengajuan->status == 'Menunggu Verifikasi') {
+        if ($pengajuan->status == 'Menunggu Verifikasi') {
             $verifikators = User::where('role', 'Verifikator Keuangan')->get();
             foreach ($verifikators as $v) {
                 Notification::create([
@@ -232,9 +217,146 @@ class PengajuanController extends Controller
                     'is_read' => false,
                 ]);
             }
+
+            // Notifikasi Ringkasan ke Kepala Balai
+            $kepalaBalais = User::where('role', 'Kepala Balai')->get();
+            foreach ($kepalaBalais as $kb) {
+                try {
+                    Notification::create([
+                        'user_id' => $kb->id,
+                        'title' => 'Pengajuan Baru Masuk',
+                        'message' => 'Pengajuan baru ' . $pengajuan->no_pengajuan . ' dari ' . $pengajuan->bidang . ' (' . $pengajuan->nama_kegiatan . ') telah dibuat.',
+                        'is_read' => false,
+                    ]);
+                } catch (\Throwable $e) {}
+            }
         }
 
         return redirect()->route('pengajuan.index')->with('success', 'Pengajuan berhasil diproses.');
+    }
+
+    // 3.B PEREKAMAN DATA PENGAJUAN LAMPAU (SPM & SP2D CAIR LALU)
+    public function createLampau()
+    {
+        $user = Auth::user();
+        if ($user->role != 'Admin Keuangan' && $user->role != 'Operator Pembayaran') {
+            abort(403, 'Akses Ditolak: Fitur Perekaman Data Lampau hanya dapat diakses oleh Admin Keuangan dan Operator Pembayaran.');
+        }
+
+        $daftarBidang = User::whereNotNull('bidang')
+            ->where('bidang', '!=', 'None')
+            ->where('bidang', '!=', 'Keuangan')
+            ->pluck('bidang')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $defaultBidang = ['Purworejo', 'Wonogiri', 'Kebumen', 'Karanganyar', 'Technopark', 'Boyolali', 'Sukoharjo', 'BLKPP', 'Sragen', 'Kulon Progo', 'Gunung Kidul', 'Ponorogo', 'Madiun', 'Pacitan'];
+        $daftarBidang = array_unique(array_merge($daftarBidang, $defaultBidang));
+        sort($daftarBidang);
+
+        // Generate No Pengajuan candidate
+        $tglBulanTahun = date('dmy');
+        try {
+            $pengajuanTerakhir = PengajuanLs::latest('id')->first();
+            $urutan = 1;
+            if ($pengajuanTerakhir && $pengajuanTerakhir->no_pengajuan) {
+                if (preg_match('/-(\d+)$/', $pengajuanTerakhir->no_pengajuan, $matches)) {
+                    $urutan = (int) $matches[1] + 1;
+                }
+            }
+        } catch (\Throwable $e) {
+            $urutan = 1;
+        }
+        $noPengajuanBaru = "KU-" . $tglBulanTahun . "-" . str_pad($urutan, 3, '0', STR_PAD_LEFT);
+
+        return view('pengajuan.create_lampau', compact('daftarBidang', 'noPengajuanBaru'));
+    }
+
+    public function storeLampau(Request $request)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Admin Keuangan' && $user->role != 'Operator Pembayaran') {
+            abort(403, 'Akses Ditolak: Perekaman Data Lampau hanya dapat diakses oleh Admin Keuangan dan Operator Pembayaran.');
+        }
+
+        $request->validate([
+            'no_pengajuan' => 'required|string|unique:pengajuan_ls,no_pengajuan',
+            'tgl_pengajuan' => 'required|date',
+            'bidang' => 'required|string',
+            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara',
+            'nama_kegiatan' => 'required|string',
+            'no_akun' => 'required|string',
+            'jenis_belanja' => 'required|string',
+            'nilai_bruto' => 'required|numeric',
+            'potongan_pajak' => 'nullable|numeric',
+            'nilai_neto' => 'required|numeric',
+            'uraian_pembayaran' => 'nullable|string',
+            'no_spm' => 'required|string',
+            'tgl_spm' => 'required|date',
+            'no_sp2d' => 'required|string',
+            'tgl_cair' => 'required|date',
+            'status' => 'required|string|in:Dicairkan,Selesai',
+            'link_google_drive' => 'required|url',
+            'bukti_penyerahan' => 'nullable|url',
+            'spj_status' => 'nullable|string',
+        ]);
+
+        $potonganPajak = $request->filled('potongan_pajak') ? $request->potongan_pajak : 0;
+        $nilaiNeto = $request->filled('nilai_neto') ? $request->nilai_neto : max(0, $request->nilai_bruto - $potonganPajak);
+
+        $dataDukungJson = null;
+        if ($request->has('data_dukung') && is_array($request->data_dukung)) {
+            $dataDukungList = [];
+            foreach ($request->data_dukung as $docName => $link) {
+                if (!empty($docName)) {
+                    $dataDukungList[] = [
+                        'nama_dokumen' => $docName,
+                        'link_drive' => $link ?? ''
+                    ];
+                }
+            }
+            $dataDukungJson = json_encode($dataDukungList);
+        }
+
+        $spjDeadline = null;
+        if ($request->tgl_cair) {
+            $spjDeadline = \Carbon\Carbon::parse($request->tgl_cair)->addDays(30)->format('Y-m-d');
+        }
+
+        try {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+        } catch (\Throwable $e) {}
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => $request->no_pengajuan,
+            'tgl_pengajuan' => $request->tgl_pengajuan,
+            'user_id' => Auth::id(),
+            'operator_pembayaran_id' => Auth::id(),
+            'bendahara_id' => Auth::id(),
+            'email_pemohon' => Auth::user()->email,
+            'bidang' => $request->bidang,
+            'nama_kegiatan' => $request->nama_kegiatan,
+            'no_akun' => $request->no_akun,
+            'jenis_belanja' => $request->jenis_belanja,
+            'nilai_bruto' => $request->nilai_bruto,
+            'potongan_pajak' => $potonganPajak,
+            'nilai_neto' => $nilaiNeto,
+            'uraian_pembayaran' => $request->uraian_pembayaran ?? '',
+            'link_google_drive' => $request->link_google_drive,
+            'bukti_penyerahan' => $request->bukti_penyerahan,
+            'no_spm' => $request->no_spm,
+            'tgl_spm' => $request->tgl_spm,
+            'no_sp2d' => $request->no_sp2d,
+            'tgl_cair' => $request->tgl_cair,
+            'status' => $request->status,
+            'kategori_pengajuan' => $request->kategori_pengajuan,
+            'data_dukung_json' => $dataDukungJson,
+            'spj_status' => $request->spj_status ?? ($request->status == 'Selesai' ? 'SPJ Lengkap' : 'Belum Upload'),
+            'spj_deadline' => $spjDeadline,
+        ]);
+
+        return redirect()->route('pengajuan.index')->with('success', 'Data pengajuan lampau ' . $pengajuan->no_pengajuan . ' berhasil direkam dengan status ' . $pengajuan->status . '.');
     }
 
     // 4. DETAIL PENGAJUAN (Untuk Verifikasi/Approval)
@@ -243,8 +365,8 @@ class PengajuanController extends Controller
         $pengajuan = PengajuanLs::findOrFail($id);
         $user = Auth::user();
 
-        // Admin Keuangan selalu bisa melihat semua pengajuan
-        if ($user->role == 'Admin Keuangan') {
+        // Admin Keuangan dan Kepala Balai selalu bisa melihat semua pengajuan
+        if ($user->role == 'Admin Keuangan' || $user->role == 'Kepala Balai') {
             return view('pengajuan.show', compact('pengajuan'));
         }
 
@@ -259,18 +381,8 @@ class PengajuanController extends Controller
             if ($pengajuan->bidang != $user->bidang) {
                 abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
             }
-        } elseif ($user->role == 'PIC UPTD') {
-            // PIC UPTD bisa melihat semua pengajuan UPTD (kecuali Draft milik orang lain)
-            $canViewByBidang = ($pengajuan->bidang == $user->bidang || $user->bidang == 'UPTD' || $user->bidang == 'None' || empty($user->bidang));
-            if (!$canViewByBidang) {
-                abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari UPTD lain.');
-            }
-            // PIC UPTD tidak bisa lihat Draft milik orang lain
-            if ($pengajuan->status == 'Draft') {
-                abort(403, 'Akses Ditolak: PIC UPTD tidak dapat melihat dokumen berstatus Draft milik orang lain.');
-            }
         }
-        // Verifikator Keuangan, PPK, Operator Pembayaran, Bendahara bisa melihat semua pengajuan
+        // Verifikator Keuangan, PPK, Operator Pembayaran, Bendahara, Kepala Balai bisa melihat semua pengajuan
         // (panel aksi di view blade sudah mengecek status yang relevan untuk ditampilkan)
 
         return view('pengajuan.show', compact('pengajuan'));
@@ -294,106 +406,27 @@ class PengajuanController extends Controller
             $pengajuan->link_google_drive = $request->link_google_drive;
         }
 
-        $userBidang = (string) ($user->bidang ?? '');
-        $isUptd = str_contains(strtoupper($userBidang), 'UPTD') || str_contains(strtoupper($userBidang), 'SATPEL') || User::where('role', 'PIC UPTD')->where('bidang', $userBidang)->exists();
-
-        $pengajuan->status = $isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi';
+        $pengajuan->status = 'Menunggu Verifikasi';
         $pengajuan->catatan_koreksi = null;
         $pengajuan->save();
 
-        if ($pengajuan->status == 'Menunggu Verifikasi UPTD') {
-            $pics = User::where('role', 'PIC UPTD')->where(function($q) use ($userBidang) {
-                $q->where('bidang', $userBidang)->orWhere('bidang', 'UPTD')->orWhere('bidang', 'None');
-            })->get();
-
-            if ($pics->isEmpty()) {
-                $pics = User::where('role', 'PIC UPTD')->get();
-            }
-
-            foreach ($pics as $pic) {
-                Notification::create([
-                    'user_id' => $pic->id,
-                    'title' => 'Pengajuan Revisi Siap Diverifikasi',
-                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diperbaiki oleh pemohon dan siap diverifikasi ulang oleh PIC UPTD.',
-                    'is_read' => false,
-                ]);
-            }
-        } else {
-            $verifikators = User::where('role', 'Verifikator Keuangan')->get();
-            foreach ($verifikators as $v) {
-                Notification::create([
-                    'user_id' => $v->id,
-                    'title' => 'Pengajuan Revisi Siap Diverifikasi',
-                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diperbaiki oleh pemohon dan siap diverifikasi ulang oleh Keuangan.',
-                    'is_read' => false,
-                ]);
-            }
+        $verifikators = User::where('role', 'Verifikator Keuangan')->get();
+        foreach ($verifikators as $v) {
+            Notification::create([
+                'user_id' => $v->id,
+                'title' => 'Pengajuan Revisi Siap Diverifikasi',
+                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diperbaiki oleh pemohon dan siap diverifikasi ulang oleh Keuangan.',
+                'is_read' => false,
+            ]);
         }
 
         return redirect()->route('pengajuan.show', $id)->with('success', 'Berkas pengajuan berhasil diperbaiki dan diajukan ulang.');
     }
 
-    // 4.5 PROSES VERIFIKASI INTERNAL PIC UPTD
+    // 4.5 PROSES VERIFIKASI INTERNAL (ALIASED KE VERIFIKASI KEUANGAN)
     public function verifikasiPicUptd(Request $request, $id)
     {
-        $user = Auth::user();
-        if ($user->role != 'PIC UPTD' && $user->role != 'Admin Keuangan') {
-            abort(403, 'Akses Ditolak: Hanya PIC UPTD yang dapat melakukan verifikasi internal UPTD.');
-        }
-
-        try {
-            try {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-            } catch (\Throwable $e) {}
-
-            $pengajuan = PengajuanLs::findOrFail($id);
-            $pengajuan->pic_uptd_id = $user->id;
-
-            if ($request->action == 'setuju') {
-                $pengajuan->status = 'Menunggu Verifikasi';
-                
-                $verifikators = User::where('role', 'Verifikator Keuangan')->get();
-                foreach ($verifikators as $v) {
-                    try {
-                        Notification::create([
-                            'user_id' => $v->id,
-                            'title' => 'Pengajuan Lolos Verifikasi UPTD',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' (' . $pengajuan->nama_kegiatan . ') telah diverifikasi oleh PIC UPTD dan menunggu verifikasi Anda.',
-                            'is_read' => false,
-                        ]);
-                    } catch (\Throwable $e) {}
-                }
-            } elseif ($request->action == 'perbaiki') {
-                $pengajuan->status = 'Perlu Perbaikan';
-                $pengajuan->catatan_koreksi = $request->catatan_koreksi;
-                
-                try {
-                    Notification::create([
-                        'user_id' => $pengajuan->user_id,
-                        'title' => 'Revisi Berkas oleh PIC UPTD',
-                        'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan koreksi PIC UPTD: ' . ($request->catatan_koreksi ?? ''),
-                        'is_read' => false,
-                    ]);
-                } catch (\Throwable $e) {}
-            } else {
-                $pengajuan->status = 'Draft';
-                $pengajuan->catatan_koreksi = $request->catatan_koreksi;
-
-                try {
-                    Notification::create([
-                        'user_id' => $pengajuan->user_id,
-                        'title' => 'Pengajuan Berkas Ditolak PIC UPTD',
-                        'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' ditolak total oleh PIC UPTD dan dikembalikan ke Draft.',
-                        'is_read' => false,
-                    ]);
-                } catch (\Throwable $e) {}
-            }
-
-            $pengajuan->save();
-            return redirect()->route('pengajuan.index')->with('success', 'Hasil verifikasi PIC UPTD berhasil disimpan.');
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Gagal memproses verifikasi PIC UPTD: ' . $e->getMessage());
-        }
+        return $this->verifikasi($request, $id);
     }
 
     // 5. PROSES VERIFIKASI (Oleh Verifikator Keuangan)
@@ -405,55 +438,67 @@ class PengajuanController extends Controller
         }
 
         try {
-            try {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-            } catch (\Throwable $e) {}
+            return DB::transaction(function () use ($request, $id, $user) {
+                try {
+                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+                } catch (\Throwable $e) {}
 
-            $pengajuan = PengajuanLs::findOrFail($id);
-            $pengajuan->verifikator_id = $user->id;
+                $pengajuan = PengajuanLs::findOrFail($id);
+                $pengajuan->verifikator_id = $user->id;
 
-            if ($request->action == 'setuju') {
-                $pengajuan->status = 'Disetujui PPK';
-                
-                $ppks = User::where('role', 'PPK')->get();
-                foreach ($ppks as $ppk) {
+                if ($request->action == 'setuju') {
+                    $pengajuan->status = 'Proses Persetujuan PPK';
+                    
+                    $ppks = User::where('role', 'PPK')->get();
+                    foreach ($ppks as $ppk) {
+                        try {
+                            Notification::create([
+                                'user_id' => $ppk->id,
+                                'title' => 'Persetujuan Dokumen Baru',
+                                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diverifikasi Keuangan dan menunggu persetujuan Anda.',
+                                'is_read' => false,
+                            ]);
+                        } catch (\Throwable $e) {}
+                    }
+
+                    // Notifikasi ke Pemohon
                     try {
                         Notification::create([
-                            'user_id' => $ppk->id,
-                            'title' => 'Persetujuan Dokumen Baru',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah diverifikasi Keuangan dan menunggu persetujuan Anda.',
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Verifikasi Keuangan Disetujui',
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' Anda telah lolos verifikasi Keuangan dan diteruskan ke PPK.',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+                } elseif ($request->action == 'perbaiki') {
+                    $pengajuan->status = 'Perlu Perbaikan';
+                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+                    
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Revisi Pengajuan Berkas',
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki: ' . ($request->catatan_koreksi ?? ''),
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+                } else {
+                    $pengajuan->status = 'Draft';
+                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Pengajuan Berkas Ditolak',
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' ditolak total dan dikembalikan ke Draft.',
                             'is_read' => false,
                         ]);
                     } catch (\Throwable $e) {}
                 }
-            } elseif ($request->action == 'perbaiki') {
-                $pengajuan->status = 'Perlu Perbaikan';
-                $pengajuan->catatan_koreksi = $request->catatan_koreksi;
-                
-                try {
-                    Notification::create([
-                        'user_id' => $pengajuan->user_id,
-                        'title' => 'Revisi Pengajuan Berkas',
-                        'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki: ' . ($request->catatan_koreksi ?? ''),
-                        'is_read' => false,
-                    ]);
-                } catch (\Throwable $e) {}
-            } else {
-                $pengajuan->status = 'Draft';
-                $pengajuan->catatan_koreksi = $request->catatan_koreksi;
 
-                try {
-                    Notification::create([
-                        'user_id' => $pengajuan->user_id,
-                        'title' => 'Pengajuan Berkas Ditolak',
-                        'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' ditolak total dan dikembalikan ke Draft.',
-                        'is_read' => false,
-                    ]);
-                } catch (\Throwable $e) {}
-            }
-
-            $pengajuan->save();
-            return redirect()->route('pengajuan.index')->with('success', 'Status pengajuan berhasil diperbarui oleh Verifikator.');
+                $pengajuan->save();
+                return redirect()->route('pengajuan.index')->with('success', 'Status pengajuan berhasil diperbarui oleh Verifikator.');
+            });
         } catch (\Throwable $e) {
             return back()->with('error', 'Gagal memproses verifikasi keuangan: ' . $e->getMessage());
         }
@@ -468,43 +513,55 @@ class PengajuanController extends Controller
         }
 
         try {
-            try {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-            } catch (\Throwable $e) {}
+            return DB::transaction(function () use ($request, $id, $user) {
+                try {
+                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+                } catch (\Throwable $e) {}
 
-            $pengajuan = PengajuanLs::findOrFail($id);
-            $pengajuan->ppk_id = $user->id;
+                $pengajuan = PengajuanLs::findOrFail($id);
+                $pengajuan->ppk_id = $user->id;
 
-            if ($request->action == 'setuju') {
-                $pengajuan->status = 'Diajukan ke SAKTI';
-                
-                $operators = User::where('role', 'Operator Pembayaran')->get();
-                foreach ($operators as $op) {
+                if ($request->action == 'setuju') {
+                    $pengajuan->status = 'Diajukan ke SAKTI';
+                    
+                    $operators = User::where('role', 'Operator Pembayaran')->get();
+                    foreach ($operators as $op) {
+                        try {
+                            Notification::create([
+                                'user_id' => $op->id,
+                                'title' => 'Pengajuan SPM SAKTI',
+                                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah disetujui PPK, silakan ajukan SPM di Aplikasi SAKTI.',
+                                'is_read' => false,
+                            ]);
+                        } catch (\Throwable $e) {}
+                    }
+
+                    // Notifikasi ke Pemohon
                     try {
                         Notification::create([
-                            'user_id' => $op->id,
-                            'title' => 'Pengajuan SPM SAKTI',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah disetujui PPK, silakan ajukan SPM di Aplikasi SAKTI.',
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Disetujui oleh PPK',
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' Anda telah disetujui PPK dan diproses di Aplikasi SAKTI.',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+                } else {
+                    $pengajuan->status = 'Perlu Perbaikan';
+                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+                    
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Revisi Berkas oleh PPK',
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan keputusan PPK: ' . ($request->catatan_koreksi ?? ''),
                             'is_read' => false,
                         ]);
                     } catch (\Throwable $e) {}
                 }
-            } else {
-                $pengajuan->status = 'Perlu Perbaikan';
-                $pengajuan->catatan_koreksi = $request->catatan_koreksi;
-                
-                try {
-                    Notification::create([
-                        'user_id' => $pengajuan->user_id,
-                        'title' => 'Revisi Berkas oleh PPK',
-                        'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan keputusan PPK: ' . ($request->catatan_koreksi ?? ''),
-                        'is_read' => false,
-                    ]);
-                } catch (\Throwable $e) {}
-            }
 
-            $pengajuan->save();
-            return redirect()->route('pengajuan.index')->with('success', 'Keputusan PPK berhasil disimpan.');
+                $pengajuan->save();
+                return redirect()->route('pengajuan.index')->with('success', 'Keputusan PPK berhasil disimpan.');
+            });
         } catch (\Throwable $e) {
             return back()->with('error', 'Gagal memproses persetujuan PPK: ' . $e->getMessage());
         }
@@ -542,6 +599,16 @@ class PengajuanController extends Controller
                             ]);
                         } catch (\Throwable $e) {}
                     }
+
+                    // Notifikasi ke Pemohon
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'Nomor SPM Diterbitkan',
+                            'message' => 'Nomor SPM ' . $pengajuan->no_spm . ' untuk berkas ' . $pengajuan->no_pengajuan . ' Anda telah diterbitkan oleh SAKTI.',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
                 }
             }
             
@@ -550,15 +617,39 @@ class PengajuanController extends Controller
                     $request->validate(['bukti_penyerahan' => 'required|url']);
                     $pengajuan->bukti_penyerahan = $request->bukti_penyerahan;
                     $pengajuan->status = 'Selesai';
+
+                    // Otomatis set batas waktu upload SPJ Pemohon (30 hari)
+                    if ($pengajuan->tgl_cair) {
+                        $pengajuan->spj_deadline = \Carbon\Carbon::parse($pengajuan->tgl_cair)->addDays(30)->format('Y-m-d');
+                    } else {
+                        $pengajuan->spj_deadline = now()->addDays(30)->format('Y-m-d');
+                    }
+
+                    // Otomatis set batas waktu 2 hari untuk Verifikator Keuangan upload SPM/SP2D
+                    $pengajuan->verifikator_spm_deadline = now()->addDays(2);
                     
+                    // 1. Notifikasi ke Pemohon
                     try {
                         Notification::create([
                             'user_id' => $pengajuan->user_id,
                             'title' => 'Uang Diserahkan & Proses Selesai',
-                            'message' => 'Bendahara telah menyerahkan uang untuk pengajuan ' . $pengajuan->no_pengajuan . '. Silakan periksa bukti penyerahan Google Drive.',
+                            'message' => 'Bendahara telah menyerahkan uang untuk pengajuan ' . $pengajuan->no_pengajuan . '. Silakan periksa bukti penyerahan Google Drive. Batas waktu upload SPJ: ' . $pengajuan->spj_deadline,
                             'is_read' => false,
                         ]);
                     } catch (\Throwable $e) {}
+
+                    // 2. Notifikasi ke Verifikator Keuangan (Batas 2 Hari)
+                    $verifikators = User::where('role', 'Verifikator Keuangan')->get();
+                    foreach ($verifikators as $v) {
+                        try {
+                            Notification::create([
+                                'user_id' => $v->id,
+                                'title' => '⏱️ Tenggat 2 Hari Upload SPM/SP2D/SPP',
+                                'message' => 'Bendahara telah menyerahkan uang untuk pengajuan ' . $pengajuan->no_pengajuan . '. Mohon unggah dokumen SPM/SP2D/SPP dalam jangka waktu 2 hari (Batas: ' . \Carbon\Carbon::parse($pengajuan->verifikator_spm_deadline)->format('d/m/Y H:i') . ').',
+                                'is_read' => false,
+                            ]);
+                        } catch (\Throwable $e) {}
+                    }
                 } elseif ($request->has('no_sp2d')) {
                     $request->validate(['no_sp2d' => 'required', 'tgl_cair' => 'required']);
                     $pengajuan->no_sp2d = $request->no_sp2d;
@@ -585,10 +676,23 @@ class PengajuanController extends Controller
     }
 
     // FITUR EKSPOR KE EXCEL
-    public function exportExcel()
+    public function exportExcel(Request $request)
     {
-        // Ambil semua data (bisa disesuaikan jika ingin difilter per bulan)
-        $daftarPengajuan = PengajuanLs::orderBy('created_at', 'desc')->get();
+        $query = PengajuanLs::orderBy('created_at', 'desc');
+
+        $tahunAktif = $request->get('tahun', date('Y'));
+        if ($tahunAktif !== 'semua' && !empty($tahunAktif)) {
+            $query->whereYear('tgl_pengajuan', $tahunAktif);
+        }
+
+        if ($request->filled('bidang')) {
+            $query->where('bidang', $request->bidang);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $daftarPengajuan = $query->get();
 
         // Mengirimkan instruksi ke browser agar mendownload file sebagai Excel
         header("Content-type: application/vnd-ms-excel");
@@ -602,5 +706,211 @@ class PengajuanController extends Controller
     {
         $pengajuan = PengajuanLs::findOrFail($id);
         return view('pengajuan.cetak', compact('pengajuan'));
+    }
+
+    // =========================================================
+    // POIN 1: PENATAUSAHAAN SPJ (3 Status Baru)
+    // =========================================================
+
+    // 8. UPLOAD SPJ OLEH VERIFIKATOR (SP2D, SPM, SPP)
+    public function uploadSpjVerifikator(Request $request, $id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Verifikator Keuangan' && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Verifikator Keuangan yang dapat mengupload SPJ.');
+        }
+
+        $pengajuan = PengajuanLs::findOrFail($id);
+
+        if (!in_array($pengajuan->status, ['Selesai'])) {
+            return back()->with('error', 'Upload SPJ hanya dapat dilakukan setelah status Selesai.');
+        }
+
+        try {
+            if ($request->filled('spj_sp2d_link')) {
+                $pengajuan->spj_sp2d_link = $request->spj_sp2d_link;
+            }
+            if ($request->filled('spj_spm_link')) {
+                $pengajuan->spj_spm_link = $request->spj_spm_link;
+            }
+            if ($request->filled('spj_spp_link')) {
+                $pengajuan->spj_spp_link = $request->spj_spp_link;
+            }
+
+            $pengajuan->spj_status = 'Menunggu Upload Pemohon';
+            // Set batas waktu 5 hari tepat sejak Verifikator Keuangan mengunggah SPM/SP2D
+            $pengajuan->spj_deadline = now()->addDays(5)->format('Y-m-d H:i:s');
+            $pengajuan->save();
+
+            // Notifikasi ke pemohon (Batas 5 hari)
+            try {
+                Notification::create([
+                    'user_id' => $pengajuan->user_id,
+                    'title' => '⏱️ Tenggat 5 Hari Upload SPJ Lengkap',
+                    'message' => 'Verifikator Keuangan telah mengunggah dokumen SPM/SP2D/SPP untuk berkas ' . $pengajuan->no_pengajuan . '. Silakan unggah dokumen SPJ Lengkap Anda dalam jangka waktu 5 hari (Batas: ' . \Carbon\Carbon::parse($pengajuan->spj_deadline)->format('d/m/Y H:i') . ').',
+                    'is_read' => false,
+                ]);
+            } catch (\Throwable $e) {}
+
+            return redirect()->route('pengajuan.show', $id)->with('success', 'Dokumen SP2D/SPM/SPP berhasil diupload. Batas waktu upload SPJ lengkap Pemohon ditetapkan 5 hari.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal mengupload SPJ: ' . $e->getMessage());
+        }
+    }
+
+    // 9. UPLOAD SPJ LENGKAP OLEH PEMOHON/UPTD/BIDANG
+    public function uploadSpjPemohon(Request $request, $id)
+    {
+        $user = Auth::user();
+        $pengajuan = PengajuanLs::findOrFail($id);
+
+        // Hanya pemohon asli atau Admin yang boleh upload SPJ
+        if ($pengajuan->user_id != $user->id && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya pemohon dokumen yang dapat mengupload SPJ lengkap.');
+        }
+
+        if ($pengajuan->spj_status != 'Menunggu Upload Pemohon') {
+            return back()->with('error', 'Upload SPJ pemohon hanya bisa dilakukan jika verifikator sudah mengupload dokumen SP2D/SPM/SPP.');
+        }
+
+        try {
+            $request->validate(['spj_lengkap_link' => 'required|url']);
+
+            $pengajuan->spj_lengkap_link = $request->spj_lengkap_link;
+            $pengajuan->spj_status = 'Menunggu Verifikasi SPJ';
+            // Set batas waktu 2 hari tepat sejak Pemohon mengunggah SPJ Lengkap
+            $pengajuan->spj_verifikator_deadline = now()->addDays(2)->format('Y-m-d H:i:s');
+            $pengajuan->save();
+
+            // Notifikasi ke Verifikator Keuangan (Batas 2 hari)
+            $verifikators = User::where('role', 'Verifikator Keuangan')->get();
+            foreach ($verifikators as $v) {
+                try {
+                    Notification::create([
+                        'user_id' => $v->id,
+                        'title' => '⏱️ Tenggat 2 Hari Verifikasi SPJ Lengkap',
+                        'message' => 'Pemohon telah mengunggah berkas SPJ Lengkap untuk pengajuan ' . $pengajuan->no_pengajuan . '. Mohon lakukan verifikasi kelengkapan SPJ dalam jangka waktu 2 hari (Batas: ' . \Carbon\Carbon::parse($pengajuan->spj_verifikator_deadline)->format('d/m/Y H:i') . ').',
+                        'is_read' => false,
+                    ]);
+                } catch (\Throwable $e) {}
+            }
+
+            return redirect()->route('pengajuan.show', $id)->with('success', 'SPJ lengkap berhasil diupload. Batas waktu verifikasi oleh Verifikator Keuangan ditetapkan 2 hari.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal mengupload SPJ lengkap: ' . $e->getMessage());
+        }
+    }
+
+    // 10. VERIFIKASI SPJ LENGKAP OLEH VERIFIKATOR
+    public function verifikasiSpj(Request $request, $id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Verifikator Keuangan' && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Verifikator Keuangan yang dapat memverifikasi SPJ.');
+        }
+
+        $pengajuan = PengajuanLs::findOrFail($id);
+
+        if ($pengajuan->spj_status != 'Menunggu Verifikasi SPJ') {
+            return back()->with('error', 'SPJ belum diupload lengkap oleh pemohon.');
+        }
+
+        try {
+            if ($request->action == 'setuju') {
+                $pengajuan->spj_status = 'SPJ Lengkap';
+                $pengajuan->spj_verified_at = now();
+                $pengajuan->spj_verified_by = $user->id;
+                $pengajuan->save();
+
+                try {
+                    Notification::create([
+                        'user_id' => $pengajuan->user_id,
+                        'title' => 'SPJ Telah Diverifikasi ✅',
+                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' telah diverifikasi dan dinyatakan lengkap oleh Verifikator Keuangan.',
+                        'is_read' => false,
+                    ]);
+                } catch (\Throwable $e) {}
+
+                // Notifikasi ke Kepala Balai (Monitoring Dokumen Selesai 100%)
+                $kepalaBalais = User::where('role', 'Kepala Balai')->get();
+                foreach ($kepalaBalais as $kb) {
+                    try {
+                        Notification::create([
+                            'user_id' => $kb->id,
+                            'title' => '🟢 SPJ Selesai & Lengkap 100%',
+                            'message' => 'Dokumen SPJ ' . $pengajuan->no_pengajuan . ' dari ' . $pengajuan->bidang . ' telah diverifikasi lengkap 100%.',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+                }
+
+                return redirect()->route('pengajuan.show', $id)->with('success', 'SPJ berhasil diverifikasi dan dinyatakan lengkap. ✅');
+            } else {
+                // Kembalikan ke pemohon untuk upload ulang
+                $pengajuan->spj_status = 'Menunggu Upload Pemohon';
+                $pengajuan->spj_lengkap_link = null;
+                $pengajuan->save();
+
+                try {
+                    Notification::create([
+                        'user_id' => $pengajuan->user_id,
+                        'title' => 'SPJ Perlu Diperbaiki',
+                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' ditolak oleh Verifikator. Silakan upload ulang SPJ yang benar.',
+                        'is_read' => false,
+                    ]);
+                } catch (\Throwable $e) {}
+
+                return redirect()->route('pengajuan.show', $id)->with('success', 'SPJ dikembalikan ke pemohon untuk perbaikan.');
+            }
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal memverifikasi SPJ: ' . $e->getMessage());
+        }
+    }
+
+    // =========================================================
+    // POIN 2: FITUR ADMIN - EDIT TANGGAL & HAPUS PENGAJUAN
+    // =========================================================
+
+    // 11. ADMIN EDIT TANGGAL PENGAJUAN
+    public function adminEditDate(Request $request, $id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Admin Keuangan yang dapat mengedit tanggal pengajuan.');
+        }
+
+        $pengajuan = PengajuanLs::findOrFail($id);
+
+        $request->validate([
+            'tgl_pengajuan' => 'required|date',
+        ]);
+
+        try {
+            $pengajuan->tgl_pengajuan = $request->tgl_pengajuan;
+            $pengajuan->save();
+
+            return redirect()->route('pengajuan.show', $id)->with('success', 'Tanggal pengajuan berhasil diperbarui ke ' . $request->tgl_pengajuan . '.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal memperbarui tanggal: ' . $e->getMessage());
+        }
+    }
+
+    // 12. ADMIN HAPUS PENGAJUAN
+    public function adminDelete($id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Admin Keuangan yang dapat menghapus pengajuan.');
+        }
+
+        try {
+            $pengajuan = PengajuanLs::findOrFail($id);
+            $noPengajuan = $pengajuan->no_pengajuan;
+            $pengajuan->delete();
+
+            return redirect()->route('pengajuan.index')->with('success', 'Pengajuan ' . $noPengajuan . ' berhasil dihapus dari sistem.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menghapus pengajuan: ' . $e->getMessage());
+        }
     }
 }

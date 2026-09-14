@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Flowchart - simonKeu BPVP Surakarta</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            line-height: 1.3;
+            font-size: 9.5px;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
+        }
+
+        /* Fixed Page Container */
+        .pdf-page {
+            width: 100%;
+            height: 275mm;
+            max-height: 275mm;
+            overflow: hidden;
+            position: relative;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .pdf-page-break {
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .page-content {
+            flex: 1;
+        }
+
+        /* Footer */
+        .pdf-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 8px;
+            color: #94a3b8;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 3px;
+            margin-top: 4px;
+        }
+
+        /* Document Header */
+        .doc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #1e3c72;
+        }
+
+        .doc-header-left h1 {
+            font-size: 16px;
+            font-weight: 800;
+            color: #1e3c72;
+            letter-spacing: -0.4px;
+            line-height: 1.1;
+        }
+
+        .doc-header-left p {
+            font-size: 8.5px;
+            color: #64748b;
+            margin-top: 1px;
+        }
+
+        .doc-header-right {
+            text-align: right;
+            font-size: 8px;
+            color: #475569;
+            background: #f1f5f9;
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .doc-header-right strong {
+            color: #1e3c72;
+        }
+
+        /* Section Styling */
+        .section-block {
+            margin-bottom: 8px;
+        }
+
+        h2.section-title {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin-bottom: 4px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #cbd5e1;
+        }
+
+        .section-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 9px;
+            margin-right: 5px;
+            flex-shrink: 0;
+        }
+
+        /* Mermaid Container */
+        .mermaid-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 6px 4px;
+            margin-bottom: 6px;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .mermaid svg {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+
+        /* Role Cards - 6 Columns */
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+            margin-bottom: 6px;
+        }
+
+        .role-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 5px 3px;
+            text-align: center;
+        }
+
+        .role-card .role-icon { font-size: 14px; margin-bottom: 1px; }
+        .role-card .role-name { font-size: 8.5px; font-weight: 700; color: #1e3c72; line-height: 1.1; }
+        .role-card .role-desc { font-size: 7.5px; color: #64748b; margin-top: 1px; line-height: 1.1; }
+
+        .role-card.pemohon { border-top: 2px solid #3b82f6; }
+        .role-card.verifier { border-top: 2px solid #f59e0b; }
+        .role-card.approver { border-top: 2px solid #10b981; }
+        .role-card.realisasi { border-top: 2px solid #ef4444; }
+        .role-card.admin { border-top: 2px solid #8b5cf6; }
+
+        /* Two Column Layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        /* Comparison Cards */
+        .compare-card {
+            border-radius: 5px;
+            padding: 6px 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .compare-card.uptd { background: #f0fdf4; border-left: 3px solid #22c55e; }
+        .compare-card.non-uptd { background: #eff6ff; border-left: 3px solid #3b82f6; }
+
+        .compare-card h4 { font-size: 9.5px; font-weight: 700; margin-bottom: 3px; }
+        .compare-card.uptd h4 { color: #166534; }
+        .compare-card.non-uptd h4 { color: #1e40af; }
+
+        .step-list { list-style: none; padding: 0; }
+        .step-list li {
+            padding: 2.5px 5px;
+            margin-bottom: 2px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.85);
+            font-size: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .step-num {
+            width: 13px; height: 13px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7.5px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .compare-card.uptd .step-num { background: #22c55e; }
+        .compare-card.non-uptd .step-num { background: #3b82f6; }
+
+        /* Tables */
+        .status-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            font-size: 8px;
+            margin-bottom: 4px;
+        }
+
+        .status-table thead th {
+            background: #1e3c72;
+            color: white;
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        .status-table tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        .status-table tbody td {
+            padding: 3.5px 6px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 8px;
+            vertical-align: middle;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 7.5px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-draft { background: #e2e8f0; color: #475569; }
+        .badge-uptd { background: #fef3c7; color: #92400e; }
+        .badge-verif { background: #ffedd5; color: #9a3412; }
+        .badge-perbaikan { background: #fee2e2; color: #991b1b; }
+        .badge-ppk { background: #dbeafe; color: #1e40af; }
+        .badge-sakti { background: #e9d5ff; color: #6b21a8; }
+        .badge-sp2d { background: #fde68a; color: #78350f; }
+        .badge-cair { background: #d1fae5; color: #065f46; }
+        .badge-selesai { background: #10b981; color: white; }
+
+        /* Print Button */
+        .print-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: #1e3c72;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Cetak PDF</button>
+
+<!-- ==================== HALAMAN 1 DARI 2 ==================== -->
+<div class="pdf-page pdf-page-break">
+    <div class="page-content">
+        <!-- HEADER -->
+        <div class="doc-header">
+            <div class="doc-header-left">
+                <h1>💰 simonKeu — Workflow Flowchart</h1>
+                <p>Sistem Informasi Smart Administrasi Layanan Manajemen Keuangan &bull; BPVP Surakarta</p>
+            </div>
+            <div class="doc-header-right">
+                Dokumen Resmi Alur Kerja<br>
+                <strong>Halaman 1 dari 2</strong>
+            </div>
+        </div>
+
+        <!-- SECTION 1: ALUR UTAMA PENGAJUAN -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">1</span>
+                Alur Utama Pengajuan SPJ LS (End-to-End)
+            </h2>
+            <div class="mermaid-container">
+                <pre class="mermaid">
+flowchart TB
+    subgraph TAHAP1["1. Pengajuan"]
+        A["🔐 Login simonKeu"] --> B["📝 Form Pengajuan"]
+        B --> C{"Simpan Status"}
+        C -->|Draft| D["💾 Draft"]
+        C -->|Ajukan| E{"Pemohon UPTD?"}
+    end
+
+    subgraph TAHAP2["2. Verifikasi"]
+        E -->|Ya| F["📋 Menunggu Verifikasi UPTD"]
+        E -->|Tidak| G["📋 Menunggu Verifikasi Keuangan"]
+        F --> H["👤 PIC UPTD Verifikasi"]
+        H -->|Setuju| G
+        H -->|Revisi| I["⚠️ Perlu Perbaikan"]
+        G --> J["🔍 Verifikator Keuangan Cek Berkas"]
+        J -->|Setuju| K["🔵 Disetujui PPK"]
+        J -->|Revisi| I
+    end
+
+    subgraph TAHAP3["3. Approval & SAKTI"]
+        K --> L["📝 PPK Persetujuan Komitmen"]
+        L -->|Setuju| M["🟣 Diajukan ke SAKTI"]
+        L -->|Tolak| I
+        M --> N["💻 Op. Pembayaran Input SPM"]
+    end
+
+    subgraph TAHAP4["4. Pencairan & Selesai"]
+        N --> O["🟤 Belum Terbit SP2D"]
+        O --> P["🏦 Bendahara Input SP2D"]
+        P --> Q["🟢 Status: Dicairkan"]
+        Q --> R["🏦 Upload Bukti Serah"]
+        R --> S["✅ Status: Selesai"]
+    end
+
+    I --> T["📝 Pemohon Perbaiki Drive & Resubmit"] --> E
+
+    style TAHAP1 fill:#eff6ff,stroke:#3b82f6,stroke-width:1px
+    style TAHAP2 fill:#fff7ed,stroke:#f97316,stroke-width:1px
+    style TAHAP3 fill:#f0fdf4,stroke:#22c55e,stroke-width:1px
+    style TAHAP4 fill:#fcf4ff,stroke:#a855f7,stroke-width:1px
+                </pre>
+            </div>
+        </div>
+
+        <!-- SECTION 2: ROLE & HAK AKSES -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">2</span>
+                Peran Pengguna & Hak Akses (Role Matrix)
+            </h2>
+            <div class="role-grid">
+                <div class="role-card pemohon">
+                    <div class="role-icon">📝</div>
+                    <div class="role-name">Operator Bidang</div>
+                    <div class="role-desc">Buat & ajukan SPJ Pusat</div>
+                </div>
+                <div class="role-card pemohon">
+                    <div class="role-icon">🏛️</div>
+                    <div class="role-name">PIC UPTD</div>
+                    <div class="role-desc">Verifikasi UPTD / Pemohon</div>
+                </div>
+                <div class="role-card verifier">
+                    <div class="role-icon">🔍</div>
+                    <div class="role-name">Verifikator Keu</div>
+                    <div class="role-desc">Verifikasi Administrasi</div>
+                </div>
+                <div class="role-card approver">
+                    <div class="role-icon">✅</div>
+                    <div class="role-name">PPK</div>
+                    <div class="role-desc">Persetujuan Komitmen</div>
+                </div>
+                <div class="role-card realisasi">
+                    <div class="role-icon">💻</div>
+                    <div class="role-name">Op. Pembayaran</div>
+                    <div class="role-desc">Input SPM SAKTI</div>
+                </div>
+                <div class="role-card realisasi">
+                    <div class="role-icon">🏦</div>
+                    <div class="role-name">Bendahara</div>
+                    <div class="role-desc">SP2D & Serah Uang</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdf-footer">
+        <span>Workflow Flowchart — simonKeu BPVP Surakarta</span>
+        <span>Halaman 1 dari 2</span>
+    </div>
+</div>
+
+<!-- ==================== HALAMAN 2 DARI 2 ==================== -->
+<div class="pdf-page">
+    <div class="page-content">
+        <!-- HEADER HALAMAN 2 -->
+        <div class="doc-header">
+            <div class="doc-header-left">
+                <h1>💰 simonKeu — Workflow Flowchart</h1>
+                <p>Sistem Informasi Smart Administrasi Layanan Manajemen Keuangan &bull; BPVP Surakarta</p>
+            </div>
+            <div class="doc-header-right">
+                Dokumen Resmi Alur Kerja<br>
+                <strong>Halaman 2 dari 2</strong>
+            </div>
+        </div>
+
+        <!-- SECTION 3 & 4: SIDE BY SIDE -->
+        <div class="two-col">
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">3</span>
+                    Alur UPTD vs Non-UPTD
+                </h2>
+                <div class="compare-card uptd" style="margin-bottom: 5px;">
+                    <h4>🏛️ Alur UPTD / Satpel (6 Tahap)</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span> Pemohon UPTD buat pengajuan</li>
+                        <li><span class="step-num">2</span> PIC UPTD verifikasi internal</li>
+                        <li><span class="step-num">3</span> Verifikator Keuangan cek berkas</li>
+                        <li><span class="step-num">4</span> PPK persetujuan komitmen</li>
+                        <li><span class="step-num">5</span> SAKTI (SPM) → Bendahara (SP2D)</li>
+                        <li><span class="step-num">6</span> Bendahara serah terima uang</li>
+                    </ul>
+                </div>
+                <div class="compare-card non-uptd">
+                    <h4>🏢 Alur Bidang Pusat (5 Tahap)</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span> Operator Bidang buat pengajuan</li>
+                        <li><span class="step-num">2</span> Verifikator Keuangan cek berkas</li>
+                        <li><span class="step-num">3</span> PPK persetujuan komitmen</li>
+                        <li><span class="step-num">4</span> SAKTI (SPM) → Bendahara (SP2D)</li>
+                        <li><span class="step-num">5</span> Bendahara serah terima uang</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">4</span>
+                    Alur Perbaikan / Revisi Berkas
+                </h2>
+                <div class="mermaid-container">
+                    <pre class="mermaid">
+flowchart TD
+    A["Cek Kelengkapan Berkas"] --> B{"Lengkap?"}
+    B -->|Tidak| C["⚠️ Status: Perlu Perbaikan<br/>+ Catatan Koreksi"]
+    C --> D["🔔 Notifikasi Pemohon"]
+    D --> E["Perbaiki Drive & Resubmit"]
+    E --> F{"Dari UPTD?"}
+    F -->|Ya| G["Menunggu Verifikasi UPTD"]
+    F -->|Tidak| H["Menunggu Verifikasi Keuangan"]
+    B -->|Ya| I["Lanjut Tahap Berikutnya"]
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: STATE TRANSITION DIAGRAM -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">5</span>
+                Diagram Transisi Status Dokumen (State Machine)
+            </h2>
+            <div class="mermaid-container">
+                <pre class="mermaid">
+stateDiagram-v2
+    direction LR
+    [*] --> Draft
+    Draft --> MenVer_UPTD : Submit UPTD
+    Draft --> MenVer : Submit Pusat
+    MenVer_UPTD --> MenVer : PIC UPTD OK
+    MenVer_UPTD --> Perbaikan : PIC UPTD Revisi
+    MenVer --> DisetPPK : Verifikator OK
+    MenVer --> Perbaikan : Verifikator Revisi
+    DisetPPK --> SAKTI : PPK OK
+    DisetPPK --> Perbaikan : PPK Tolak
+    SAKTI --> BelumSP2D : Input SPM
+    BelumSP2D --> Dicairkan : Input SP2D
+    Dicairkan --> Selesai : Upload Bukti
+    Perbaikan --> MenVer_UPTD : Resubmit UPTD
+    Perbaikan --> MenVer : Resubmit Pusat
+    Selesai --> [*]
+
+    state "Menunggu Verifikasi UPTD" as MenVer_UPTD
+    state "Menunggu Verifikasi" as MenVer
+    state "Perlu Perbaikan" as Perbaikan
+    state "Disetujui PPK" as DisetPPK
+    state "Diajukan ke SAKTI" as SAKTI
+    state "Belum Terbit SP2D" as BelumSP2D
+                </pre>
+            </div>
+        </div>
+
+        <!-- SECTION 6 & 7: TABLES SIDE BY SIDE -->
+        <div class="two-col">
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">6</span>
+                    Matriks Status Dokumen
+                </h2>
+                <table class="status-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Aktor</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="badge badge-draft">Draft</span></td><td>Pemohon</td><td>Lengkapi & ajukan</td></tr>
+                        <tr><td><span class="badge badge-uptd">Menunggu Verifikasi UPTD</span></td><td>PIC UPTD</td><td>Verifikasi internal UPTD</td></tr>
+                        <tr><td><span class="badge badge-verif">Menunggu Verifikasi</span></td><td>Verifikator Keu</td><td>Cek berkas & akun DIPA</td></tr>
+                        <tr><td><span class="badge badge-perbaikan">Perlu Perbaikan</span></td><td>Pemohon</td><td>Revisi file & resubmit</td></tr>
+                        <tr><td><span class="badge badge-ppk">Disetujui PPK</span></td><td>PPK</td><td>Persetujuan komitmen</td></tr>
+                        <tr><td><span class="badge badge-sakti">Diajukan ke SAKTI</span></td><td>Op. Pembayaran</td><td>Input nomor SPM SAKTI</td></tr>
+                        <tr><td><span class="badge badge-sp2d">Belum Terbit SP2D</span></td><td>Bendahara</td><td>Input SP2D & tgl cair</td></tr>
+                        <tr><td><span class="badge badge-cair">Dicairkan</span></td><td>Bendahara</td><td>Upload bukti penyerahan</td></tr>
+                        <tr><td><span class="badge badge-selesai">Selesai</span></td><td>—</td><td>Pencairan lunas & selesai</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">7</span>
+                    Fitur Utama Aplikasi
+                </h2>
+                <table class="status-table">
+                    <thead>
+                        <tr>
+                            <th>Fitur</th>
+                            <th>Fungsi Ringkas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>📊 Dashboard</strong></td><td>Grafik & statistik per status/bidang</td></tr>
+                        <tr><td><strong>📋 Filter & Paginasi</strong></td><td>Cari & saring pengajuan per bidang/status</td></tr>
+                        <tr><td><strong>📄 Cetak Ringkasan</strong></td><td>Cetak resume pengajuan cetak-ready</td></tr>
+                        <tr><td><strong>📥 Ekspor Excel</strong></td><td>Download laporan rekap pengajuan (.xlsx)</td></tr>
+                        <tr><td><strong>🔔 Notifikasi Real-Time</strong></td><td>Pemberitahuan otomatis ke role tujuan</td></tr>
+                        <tr><td><strong>👥 Kelola User</strong></td><td>Manajemen pengguna (Admin Keuangan)</td></tr>
+                        <tr><td><strong>📂 Google Drive</strong></td><td>Tautan berkas dukung via Drive</td></tr>
+                        <tr><td><strong>📑 Baca PDF SP2D</strong></td><td>Ekstraksi otomatis nomor & tgl SP2D</td></tr>
+                        <tr><td><strong>💰 Ketersediaan Anggaran</strong></td><td>Monitoring pagu & ketersediaan dana</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdf-footer">
+        <span>Workflow Flowchart — simonKeu BPVP Surakarta</span>
+        <span>Halaman 2 dari 2</span>
+    </div>
+</div>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'base',
+        themeVariables: {
+            primaryColor: '#dbeafe',
+            primaryBorderColor: '#1e3c72',
+            primaryTextColor: '#1e3c72',
+            lineColor: '#64748b',
+            secondaryColor: '#fef3c7',
+            tertiaryColor: '#f0fdf4',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '9.5px'
+        },
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis',
+            padding: 4
+        },
+        stateDiagram: {
+            useMaxWidth: true
+        }
+    });
+</script>
+
+</body>
+</html>

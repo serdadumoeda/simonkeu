@@ -18,7 +18,7 @@
         $step1_class = 'completed';
         
         // Step 2: Verifikasi
-        if ($pengajuan->verifikator || in_array($status, ['Disetujui PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'])) {
+        if ($pengajuan->verifikator || in_array($status, ['Proses Persetujuan PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'])) {
             $step2_class = 'completed';
         } elseif ($status == 'Menunggu Verifikasi') {
             $step2_class = 'active';
@@ -31,7 +31,7 @@
         // Step 3: PPK
         if ($pengajuan->ppk || in_array($status, ['Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'])) {
             $step3_class = 'completed';
-        } elseif ($status == 'Disetujui PPK') {
+        } elseif ($status == 'Proses Persetujuan PPK') {
             $step3_class = 'active';
         } elseif ($status == 'Perlu Perbaikan' && $pengajuan->ppk_id) {
             $step3_class = 'warning';
@@ -66,13 +66,73 @@
             $step6_class = 'pending';
         }
 
-        // Calculate progress width for stepper line
+        // Step SPJ 7: Upload SPJ Verifikator
+        $spjStatus = $pengajuan->spj_status ?? 'Belum Upload';
+        if (in_array($spjStatus, ['Menunggu Upload Pemohon', 'Menunggu Verifikasi SPJ', 'SPJ Lengkap'])) {
+            $step7_class = 'completed-green';
+        } elseif ($status == 'Selesai' && $spjStatus == 'Belum Upload') {
+            $step7_class = 'active-green';
+        } else {
+            $step7_class = 'pending';
+        }
+
+        // Step SPJ 8: Upload SPJ Pemohon
+        if (in_array($spjStatus, ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])) {
+            $step8_class = 'completed-green';
+        } elseif ($spjStatus == 'Menunggu Upload Pemohon') {
+            $step8_class = 'active-green';
+        } else {
+            $step8_class = 'pending';
+        }
+
+        // Step SPJ 9: Verifikasi SPJ
+        if ($spjStatus == 'SPJ Lengkap') {
+            $step9_class = 'completed-green';
+        } elseif ($spjStatus == 'Menunggu Verifikasi SPJ') {
+            $step9_class = 'active-green';
+        } else {
+            $step9_class = 'pending';
+        }
+
+        // Calculate progress width for stepper line (6 main steps + 3 SPJ steps)
         $progress_width = '0%';
-        if ($step6_class == 'completed') { $progress_width = '90%'; }
-        elseif ($step5_class == 'completed') { $progress_width = '72%'; }
-        elseif ($step4_class == 'completed') { $progress_width = '54%'; }
-        elseif ($step3_class == 'completed') { $progress_width = '36%'; }
-        elseif ($step2_class == 'completed') { $progress_width = '18%'; }
+        if ($step9_class == 'completed-green') { $progress_width = '95%'; }
+        elseif ($step8_class == 'completed-green') { $progress_width = '85%'; }
+        elseif ($step7_class == 'completed-green') { $progress_width = '78%'; }
+        elseif ($step6_class == 'completed') { $progress_width = '70%'; }
+        elseif ($step5_class == 'completed') { $progress_width = '58%'; }
+        elseif ($step4_class == 'completed') { $progress_width = '46%'; }
+        elseif ($step3_class == 'completed') { $progress_width = '34%'; }
+        elseif ($step2_class == 'completed') { $progress_width = '22%'; }
+        elseif ($step1_class == 'completed') { $progress_width = '5%'; }
+
+        // SPJ Deadline warning for Pemohon (5 Hari sejak Verifikator upload)
+        $spjDeadlineWarning = null;
+        if ($pengajuan->spj_deadline && $spjStatus != 'SPJ Lengkap') {
+            $nowP = \Carbon\Carbon::now();
+            $deadlineP = \Carbon\Carbon::parse($pengajuan->spj_deadline);
+            $diffHoursP = $nowP->diffInHours($deadlineP, false);
+            $diffMinutesP = $nowP->diffInMinutes($deadlineP, false) % 60;
+
+            if ($diffHoursP < 0 || ($diffHoursP == 0 && $diffMinutesP < 0)) {
+                $overdueDaysP = abs($nowP->diffInDays($deadlineP));
+                $spjDeadlineWarning = [
+                    'level' => 'danger',
+                    'badge' => '🚨 TERLAMBAT UPLOAD SPJ (> 5 HARI)',
+                    'text' => '🚨 TERLAMBAT! Upload dokumen SPJ Lengkap telah MELEBIHI BATAS WAKTU 5 HARI (' . ($overdueDaysP > 0 ? 'Lewat ' . $overdueDaysP . ' hari!' : 'Lewat beberapa jam!') . ').',
+                    'is_overdue' => true
+                ];
+            } else {
+                $sisaDaysP = floor($diffHoursP / 24);
+                $sisaHoursP = $diffHoursP % 24;
+                $spjDeadlineWarning = [
+                    'level' => 'success',
+                    'badge' => '🟢 ⏱️ DALAM BATAS WAKTU 5 HARI',
+                    'text' => '⏱️ Batas waktu 5 hari upload SPJ Lengkap tersisa ' . $sisaDaysP . ' hari ' . $sisaHoursP . ' jam lagi (Batas: ' . $deadlineP->format('d/m/Y H:i') . ').',
+                    'is_overdue' => false
+                ];
+            }
+        }
     @endphp
 
     @if(session('success'))
@@ -98,14 +158,122 @@
             </div>
         </div>
 
-        <!-- VISUAL STEPPER TIMELINE -->
+        <!-- PETUNJUK TINDAKAN SELANJUTNYA & NOTIFIKASI WHATSAPP SPESIFIK AKTOR -->
+        @php
+            $actionTitle = "";
+            $actionDesc = "";
+            $actionRole = "";
+            $actionBadge = "bg-primary text-white";
+            $targetActorUser = null;
+
+            if ($status == 'Draft') {
+                $actionTitle = "Draft Pengajuan Pembayaran";
+                $actionDesc = "Berkas masih tersimpan sebagai draft. Pemohon silakan memeriksa kelengkapan data lalu klik Ajukan.";
+                $actionRole = "Pemohon";
+                $actionBadge = "bg-secondary text-white";
+                $targetActorUser = $pengajuan->user;
+            } elseif ($status == 'Menunggu Verifikasi') {
+                $actionTitle = "Verifikasi Kelengkapan Administrasi Keuangan";
+                $actionDesc = "Berkas berada di antrean Verifikator Keuangan (" . ($pengajuan->picUptd->name ?? 'Tim Verifikator') . "). Perlu pemeriksaan kelengkapan dokumen data dukung.";
+                $actionRole = "Verifikator Keuangan";
+                $actionBadge = "bg-warning text-dark";
+                $targetActorUser = $pengajuan->picUptd ?? \App\Models\User::where('role', 'Verifikator Keuangan')->first();
+            } elseif ($status == 'Perlu Perbaikan') {
+                $actionTitle = "Perbaikan Berkas & Pengajuan Ulang";
+                $actionDesc = "Berkas dikembalikan untuk diperbaiki. Pemohon (" . ($pengajuan->user->name ?? 'Pemohon') . ") silakan cek Catatan Koreksi dan ajukan ulang.";
+                $actionRole = "Pemohon";
+                $actionBadge = "bg-danger text-white";
+                $targetActorUser = $pengajuan->user;
+            } elseif ($status == 'Proses Persetujuan PPK') {
+                $actionTitle = "Persetujuan Finansial oleh PPK";
+                $actionDesc = "Berkas disetujui Verifikator dan kini menunggu persetujuan finansial dari Pejabat Pembuat Komitmen (PPK).";
+                $actionRole = "PPK";
+                $actionBadge = "bg-info text-dark";
+                $targetActorUser = $pengajuan->ppk ?? \App\Models\User::where('role', 'PPK')->first();
+            } elseif ($status == 'Diajukan ke SAKTI') {
+                $actionTitle = "Penerbitan & Input Nomor SPM SAKTI";
+                $actionDesc = "Berkas disetujui PPK. Operator Pembayaran perlu memproses di SAKTI dan menginputkan Nomor SPM.";
+                $actionRole = "Operator Pembayaran";
+                $actionBadge = "bg-primary text-white";
+                $targetActorUser = $pengajuan->operatorPembayaran ?? \App\Models\User::where('role', 'Operator Pembayaran')->first();
+            } elseif ($status == 'Belum Terbit SP2D') {
+                $actionTitle = "Konfirmasi Pencairan SP2D KPPN";
+                $actionDesc = "Nomor SPM sudah terbit (" . ($pengajuan->no_spm ?? '-') . "). Bendahara perlu memasukkan Nomor SP2D & Konfirmasi Tanggal Cair.";
+                $actionRole = "Bendahara";
+                $actionBadge = "bg-dark text-white";
+                $targetActorUser = $pengajuan->bendahara ?? \App\Models\User::where('role', 'Bendahara')->first();
+            } elseif ($status == 'Dicairkan') {
+                $actionTitle = "Penyerahan Uang & Upload Tanda Terima";
+                $actionDesc = "Dana SP2D telah cair. Bendahara menyerahkan uang dan mengunggah Tanda Bukti Penyerahan.";
+                $actionRole = "Bendahara & Pemohon";
+                $actionBadge = "bg-success text-white";
+                $targetActorUser = $pengajuan->user ?? $pengajuan->bendahara;
+            } elseif ($status == 'Selesai') {
+                if ($spjStatus == 'Belum Upload') {
+                    $actionTitle = "Upload Dokumen SPM & SP2D oleh Verifikator";
+                    $actionDesc = "Pencairan selesai. Verifikator Keuangan mengunggah dokumen SPM, SP2D, dan SPP ke Google Drive.";
+                    $actionRole = "Verifikator Keuangan";
+                    $actionBadge = "bg-primary text-white";
+                    $targetActorUser = \App\Models\User::where('role', 'Verifikator Keuangan')->first();
+                } elseif ($spjStatus == 'Menunggu Upload Pemohon') {
+                    $actionTitle = "Upload SPJ Lengkap oleh Pemohon (Batas 5 Hari)";
+                    $actionDesc = "Verifikator telah mengunggah SPM/SP2D. Pemohon (" . ($pengajuan->user->name ?? 'Pemohon') . ") wajib mengunggah SPJ Lengkap.";
+                    $actionRole = "Pemohon";
+                    $actionBadge = "bg-info text-dark";
+                    $targetActorUser = $pengajuan->user;
+                } elseif ($spjStatus == 'Menunggu Verifikasi SPJ') {
+                    $actionTitle = "Verifikasi Akhir Dokumen SPJ Lengkap (Batas 2 Hari)";
+                    $actionDesc = "Pemohon telah mengunggah SPJ. Verifikator Keuangan perlu memverifikasi kelengkapan berkas SPJ.";
+                    $actionRole = "Verifikator Keuangan";
+                    $actionBadge = "bg-warning text-dark";
+                    $targetActorUser = \App\Models\User::where('role', 'Verifikator Keuangan')->first();
+                } else {
+                    $actionTitle = "Penatausahaan SPJ Selesai 100%";
+                    $actionDesc = "Seluruh rangkaian pencairan keuangan dan pertanggungjawaban SPJ telah selesai 100% (Lengkap & Verified).";
+                    $actionRole = "Selesai";
+                    $actionBadge = "bg-success text-white";
+                    $targetActorUser = $pengajuan->user;
+                }
+            }
+
+            $waUrl = $pengajuan->getWhatsappNotificationUrl($targetActorUser);
+            $targetNameStr = $targetActorUser->name ?? $actionRole;
+            $targetPhoneNum = $targetActorUser->no_wa ?? '-';
+        @endphp
+
+        <div class="card border-0 shadow-sm rounded-4 bg-primary bg-opacity-10 p-3 mb-4 border-start border-primary border-4">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-primary text-white p-3 rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px;">
+                        <i class="bi bi-lightbulb-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="fw-bold text-dark fs-6">💡 Petunjuk Tindakan Selanjutnya:</span>
+                            <span class="badge {{ $actionBadge }} rounded-pill px-2.5 py-1 small">PJ: {{ $actionRole }}</span>
+                        </div>
+                        <h6 class="fw-bold text-primary mb-0">{{ $actionTitle }}</h6>
+                        <p class="text-muted small mb-0">{{ $actionDesc }}</p>
+                    </div>
+                </div>
+                <div>
+                    <a href="{{ $waUrl }}" target="_blank" class="btn btn-success rounded-pill px-3 py-2 shadow-sm d-flex align-items-center gap-2 fw-semibold text-white" title="Kirim notifikasi WhatsApp ke {{ $targetNameStr }} ({{ $targetPhoneNum }})">
+                        <i class="bi bi-whatsapp fs-5"></i>
+                        <span>Kirim Notifikasi WA ({{ $targetNameStr }})</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISUAL STEPPER TIMELINE (6 step utama + 3 step SPJ hijau) -->
         <h5 class="fw-bold text-dark mb-4 text-center">
             <i class="bi bi-geo-alt-fill text-primary"></i> Posisi Berkas SPJ Saat Ini
         </h5>
         
-        <div class="stepper-container">
-            <div class="stepper-line"></div>
-            <div class="stepper-line-progress" style="width: {{ $progress_width }};"></div>
+        <div class="table-responsive py-2 mb-3">
+            <div class="stepper-container" style="min-width: 900px;">
+                <div class="stepper-line"></div>
+                <div class="stepper-line-progress" style="width: {{ $progress_width }};"></div>
 
             <!-- Step 1 -->
             <div class="stepper-item {{ $step1_class }}">
@@ -113,7 +281,9 @@
                     <i class="bi bi-file-earmark-plus-fill"></i>
                 </div>
                 <div class="stepper-label">Pemohon</div>
-                <div class="stepper-sublabel text-truncate" style="max-width: 120px;" title="{{ $pengajuan->user->name ?? '' }}">{{ $pengajuan->user->name ?? '' }}</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;" title="{{ $pengajuan->user->name ?? '' }}">
+                    {{ $pengajuan->user->name ?? 'Pemohon' }}
+                </div>
             </div>
 
             <!-- Step 2 -->
@@ -125,10 +295,15 @@
                     @endif
                 </div>
                 <div class="stepper-label">Verifikasi Keuangan</div>
-                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
-                    @if($pengajuan->verifikator) {{ $pengajuan->verifikator->name }}
-                    @elseif($step2_class == 'warning') Perlu Revisi
-                    @else ⏳ Menunggu
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step2_class == 'completed')
+                        {{ $pengajuan->verifikator->name ?? '✓ Disetujui' }}
+                    @elseif($step2_class == 'warning')
+                        ⚠️ Perlu Revisi
+                    @elseif($step2_class == 'active')
+                        ⏳ Proses Verifikasi
+                    @else
+                        Belum Dimulai
                     @endif
                 </div>
             </div>
@@ -142,10 +317,15 @@
                     @endif
                 </div>
                 <div class="stepper-label">Persetujuan PPK</div>
-                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
-                    @if($pengajuan->ppk) {{ $pengajuan->ppk->name }}
-                    @elseif($step3_class == 'warning') Ditolak PPK
-                    @else ⏳ Menunggu
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step3_class == 'completed')
+                        {{ $pengajuan->ppk->name ?? '✓ Disetujui PPK' }}
+                    @elseif($step3_class == 'warning')
+                        ⚠️ Ditolak PPK
+                    @elseif($step3_class == 'active')
+                        ⏳ Proses PPK
+                    @else
+                        Belum Dimulai
                     @endif
                 </div>
             </div>
@@ -158,10 +338,13 @@
                     @endif
                 </div>
                 <div class="stepper-label">Proses SAKTI (SPM)</div>
-                <div class="stepper-sublabel text-truncate" style="max-width: 120px;">
-                    @if($pengajuan->operatorPembayaran) {{ $pengajuan->operatorPembayaran->name }}
-                    @elseif($pengajuan->no_spm) SPM: {{ $pengajuan->no_spm }}
-                    @else ⏳ Menunggu
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step4_class == 'completed')
+                        {{ $pengajuan->operatorPembayaran->name ?? ($pengajuan->no_spm ? 'SPM: ' . $pengajuan->no_spm : '✓ SPM Terbit') }}
+                    @elseif($step4_class == 'active')
+                        ⏳ Proses SAKTI
+                    @else
+                        Belum Dimulai
                     @endif
                 </div>
             </div>
@@ -173,12 +356,14 @@
                     @else <i class="bi bi-wallet2"></i>
                     @endif
                 </div>
-                <div class="stepper-label">Pencairan Bendahara</div>
-                <div class="stepper-sublabel" style="font-size: 11px; color: #adb5bd; margin-top: 2px;">
-                    @if(in_array($status, ['Dicairkan', 'Selesai']))
-                        Lunas/Cair @if(isset($selisih)) ({{ $selisih == 0 ? 'Hari H' : $selisih . ' Hari' }}) @endif
+                <div class="stepper-label">Pencairan</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step5_class == 'completed')
+                        {{ $pengajuan->bendahara->name ?? '✓ SP2D Cair' }}
+                    @elseif($step5_class == 'active')
+                        ⏳ Proses SP2D
                     @else
-                        ⏳ Menunggu @if(isset($selisih)) ({{ $selisih == 0 ? 'Hari H' : $selisih . ' Hari' }}) @endif
+                        Belum Dimulai
                     @endif
                 </div>
             </div>
@@ -190,18 +375,86 @@
                     @else <i class="bi bi-cash-stack"></i>
                     @endif
                 </div>
-                <div class="stepper-label">Penyerahan Uang</div>
-                <div class="stepper-sublabel" style="font-size: 11px; color: #adb5bd; margin-top: 2px;">
-                    @if($status == 'Selesai')
-                        Selesai/Diserahkan
-                    @elseif($status == 'Dicairkan')
+                <div class="stepper-label">Penyerahan</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step6_class == 'completed')
+                        ✓ Uang Diserahkan
+                    @elseif($step6_class == 'active')
                         ⏳ Siap Diserahkan
                     @else
-                        ⏳ Menunggu
+                        Belum Dimulai
                     @endif
                 </div>
             </div>
+
+            <!-- Step 7: SPJ Verifikator (HIJAU) -->
+            <div class="stepper-item {{ $step7_class }}">
+                <div class="stepper-icon">
+                    @if($step7_class == 'completed-green') <i class="bi bi-check2"></i>
+                    @else <i class="bi bi-cloud-arrow-up"></i>
+                    @endif
+                </div>
+                <div class="stepper-label">Upload SPJ</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step7_class == 'completed-green')
+                        ✓ SPM/SP2D Uploaded
+                    @elseif($step7_class == 'active-green')
+                        ⏳ Upload SPM/SP2D
+                    @else
+                        Belum Dimulai
+                    @endif
+                </div>
+            </div>
+
+            <!-- Step 8: SPJ Pemohon (HIJAU) -->
+            <div class="stepper-item {{ $step8_class }}">
+                <div class="stepper-icon">
+                    @if($step8_class == 'completed-green') <i class="bi bi-check2"></i>
+                    @else <i class="bi bi-file-earmark-arrow-up"></i>
+                    @endif
+                </div>
+                <div class="stepper-label">SPJ Pemohon</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step8_class == 'completed-green')
+                        ✓ SPJ Diunggah
+                    @elseif($step8_class == 'active-green')
+                        ⏳ Upload SPJ (5 Hari)
+                    @else
+                        Belum Dimulai
+                    @endif
+                </div>
+            </div>
+
+            <!-- Step 9: Verifikasi SPJ (HIJAU) -->
+            <div class="stepper-item {{ $step9_class }}">
+                <div class="stepper-icon">
+                    @if($step9_class == 'completed-green') <i class="bi bi-check2"></i>
+                    @else <i class="bi bi-check2-square"></i>
+                    @endif
+                </div>
+                <div class="stepper-label">Verifikasi SPJ</div>
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;">
+                    @if($step9_class == 'completed-green')
+                        {{ $pengajuan->spjVerifiedBy->name ?? '✓ SPJ Lengkap 100%' }}
+                    @elseif($step9_class == 'active-green')
+                        ⏳ Verifikasi SPJ
+                    @else
+                        Belum Dimulai
+                    @endif
+                </div>
+            </div>
+            </div>
         </div>
+
+        <!-- SPJ Deadline Warning -->
+        @if($spjDeadlineWarning)
+            <div class="alert alert-{{ $spjDeadlineWarning['level'] }} shadow-sm rounded-3 mb-4 d-flex align-items-center gap-2">
+                <i class="bi bi-alarm-fill fs-5"></i>
+                <div>
+                    <strong>Peringatan Batas Waktu SPJ:</strong> {{ $spjDeadlineWarning['text'] }}
+                </div>
+            </div>
+        @endif
 
         @if(isset($selisih))
             <div class="bg-light p-3 rounded-3 border border-light-subtle d-flex align-items-center justify-content-between mb-4 shadow-sm animate__animated animate__fadeIn">
@@ -221,10 +474,23 @@
                     </div>
                 </div>
                 <div class="d-none d-md-block">
-                    <span class="badge bg-{{ in_array($pengajuan->status, ['Dicairkan', 'Selesai']) ? 'success' : 'warning' }} text-white px-3 py-2 rounded-pill shadow-sm small">
-                        <i class="bi bi-{{ in_array($pengajuan->status, ['Dicairkan', 'Selesai']) ? 'check-circle-fill' : 'clock' }} me-1"></i>
-                        {{ in_array($pengajuan->status, ['Dicairkan', 'Selesai']) ? 'Selesai Dicairkan' : 'Dalam Proses' }}
-                    </span>
+                    @if($pengajuan->status == 'Selesai' && ($pengajuan->spj_status ?? 'Belum Upload') == 'SPJ Lengkap')
+                        <span class="badge bg-success text-white px-3 py-2 rounded-pill shadow-sm small">
+                            <i class="bi bi-check-all me-1"></i> Lengkap & Verified
+                        </span>
+                    @elseif($pengajuan->status == 'Selesai')
+                        <span class="badge bg-primary text-white px-3 py-2 rounded-pill shadow-sm small">
+                            <i class="bi bi-clock-history me-1"></i> Proses Penatausahaan SPJ ({{ $pengajuan->overall_progress_percent }}%)
+                        </span>
+                    @elseif($pengajuan->status == 'Dicairkan')
+                        <span class="badge bg-info text-white px-3 py-2 rounded-pill shadow-sm small">
+                            <i class="bi bi-cash-stack me-1"></i> Uang Diserahkan / Cair
+                        </span>
+                    @else
+                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm small">
+                            <i class="bi bi-clock me-1"></i> Dalam Proses
+                        </span>
+                    @endif
                 </div>
             </div>
         @endif
@@ -347,15 +613,15 @@
             }
         @endphp
 
-        <!-- DAFTAR DATA DUKUNG DOKUMEN WAJIB -->
+        <!-- DAFTAR DATA DUKUNG DOKUMEN WAJIB (FORMAT VERTIKAL) -->
         <div class="card border-primary border-opacity-25 bg-light p-4 mb-4 shadow-sm">
             <h5 class="fw-bold text-dark mb-3">
                 <i class="bi bi-folder-symlink-fill text-primary me-2"></i> Berkas Data Dukung Wajib ({{ $pengajuan->kategori_pengajuan }})
             </h5>
-            <div class="row g-3">
+            <div class="row g-2">
                 @if(count($dataDukungList) > 0)
                     @foreach($dataDukungList as $idx => $doc)
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
                                 <div>
                                     <span class="badge bg-primary bg-opacity-10 text-primary me-2">{{ $idx + 1 }}</span>
@@ -377,6 +643,84 @@
             </div>
         </div>
 
+        <!-- ========================================================= -->
+        <!-- POIN 1: PENATAUSAHAAN SPJ (Section baru di bawah Data Dukung) -->
+        <!-- ========================================================= -->
+        @if($pengajuan->status == 'Selesai' || in_array($spjStatus, ['Menunggu Upload Pemohon', 'Menunggu Verifikasi SPJ', 'SPJ Lengkap']))
+            <div class="card border-success border-opacity-25 bg-light p-4 mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-journal-check text-success me-2"></i> Penatausahaan SPJ
+                    @if($spjStatus == 'SPJ Lengkap')
+                        <span class="badge bg-success ms-2 rounded-pill"><i class="bi bi-check-circle-fill"></i> Lengkap & Terverifikasi</span>
+                    @endif
+                </h5>
+
+                <!-- Status SPJ -->
+                <div class="mb-3">
+                    <span class="small fw-semibold text-muted">Status SPJ:</span>
+                    @if($spjStatus == 'Belum Upload')
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-50 px-2 py-1 rounded-pill ms-2">⏳ Belum Upload</span>
+                    @elseif($spjStatus == 'Menunggu Upload Pemohon')
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-50 px-2 py-1 rounded-pill ms-2"><i class="bi bi-upload"></i> Menunggu Upload Pemohon</span>
+                    @elseif($spjStatus == 'Menunggu Verifikasi SPJ')
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-50 px-2 py-1 rounded-pill ms-2"><i class="bi bi-clock"></i> Menunggu Verifikasi SPJ</span>
+                    @elseif($spjStatus == 'SPJ Lengkap')
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-50 px-2 py-1 rounded-pill ms-2"><i class="bi bi-check-circle-fill"></i> SPJ Lengkap</span>
+                    @endif
+                </div>
+
+                <!-- Dokumen SPJ yang sudah diupload -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12">
+                        <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                            <div><i class="bi bi-file-earmark-pdf text-danger me-2"></i><strong class="small">Dokumen SP2D</strong></div>
+                            @if($pengajuan->spj_sp2d_link)
+                                <a href="{{ $pengajuan->spj_sp2d_link }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 small"><i class="bi bi-box-arrow-up-right me-1"></i> Buka</a>
+                            @else
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">Belum diupload</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                            <div><i class="bi bi-file-earmark-text text-primary me-2"></i><strong class="small">Dokumen SPM</strong></div>
+                            @if($pengajuan->spj_spm_link)
+                                <a href="{{ $pengajuan->spj_spm_link }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 small"><i class="bi bi-box-arrow-up-right me-1"></i> Buka</a>
+                            @else
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">Belum diupload</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                            <div><i class="bi bi-file-earmark-medical text-warning me-2"></i><strong class="small">Dokumen SPP</strong></div>
+                            @if($pengajuan->spj_spp_link)
+                                <a href="{{ $pengajuan->spj_spp_link }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 small"><i class="bi bi-box-arrow-up-right me-1"></i> Buka</a>
+                            @else
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">Belum diupload</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                            <div><i class="bi bi-folder-fill text-success me-2"></i><strong class="small">SPJ Lengkap (Pemohon)</strong></div>
+                            @if($pengajuan->spj_lengkap_link)
+                                <a href="{{ $pengajuan->spj_lengkap_link }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 small"><i class="bi bi-box-arrow-up-right me-1"></i> Buka</a>
+                            @else
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">Belum diupload</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if($pengajuan->spj_verified_at)
+                    <div class="alert alert-success mb-0 py-2 small">
+                        <i class="bi bi-patch-check-fill me-1"></i> SPJ diverifikasi pada <strong>{{ \Carbon\Carbon::parse($pengajuan->spj_verified_at)->format('d F Y H:i') }}</strong>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         @if($pengajuan->catatan_koreksi)
             <div class="alert alert-danger shadow-sm rounded-3 mb-4">
                 <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Catatan Koreksi Perbaikan Berkas:</h6>
@@ -386,7 +730,7 @@
 
         <!-- PANEL AJUKAN ULANG BERKAS UNTUK PEMOHON (JIKA PERLU PERBAIKAN) -->
         @if(
-            (Auth::user()->role == 'Operator Bidang' || Auth::user()->role == 'PIC UPTD')
+            Auth::user()->role == 'Operator Bidang'
             && $pengajuan->user_id == Auth::id()
             && $pengajuan->status == 'Perlu Perbaikan'
         )
@@ -408,65 +752,28 @@
 
         <hr class="text-muted opacity-25">
 
-        <!-- PANEL TINDAKAN PIC UPTD -->
-        @if(Auth::user()->role == 'PIC UPTD' && $pengajuan->status == 'Menunggu Verifikasi UPTD')
-            <div class="card card-custom border-info border-top border-4 p-4 bg-light mb-4 shadow-sm">
-                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-person-check-fill text-info"></i> Panel Verifikasi Internal PIC UPTD</h5>
-                <form action="{{ route('pengajuan.verifikasiPicUptd', $pengajuan->id) }}" method="POST">
-                    @csrf
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Internal UPTD ({{ $pengajuan->kategori_pengajuan }}):</label>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input border-secondary" type="checkbox" id="checkPicAkun" required> 
-                            <label class="form-check-label small fw-semibold text-dark" for="checkPicAkun">
-                                Kesesuaian Program & Usulan Kegiatan UPTD ({{ $pengajuan->no_akun }})
-                            </label>
-                        </div>
-                        @foreach($dataDukungList as $cIdx => $cDoc)
-                            <div class="form-check mb-2">
-                                <input class="form-check-input border-secondary" type="checkbox" id="checkPicDoc_{{ $cIdx }}" required> 
-                                <label class="form-check-label small" for="checkPicDoc_{{ $cIdx }}">
-                                    Kelengkapan Berkas UPTD: <strong>{{ $cDoc['nama_dokumen'] ?? '' }}</strong>
-                                </label>
-                            </div>
-                        @endforeach
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>
-                        <textarea name="catatan_koreksi" class="form-control" rows="2" placeholder="Tulis catatan perbaikan PIC UPTD jika ada berkas yang kurang..."></textarea>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="submit" name="action" value="setuju" class="btn btn-info text-white rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-check-circle-fill"></i> Setujui & Teruskan ke Keuangan Pusat
-                        </button>
-                        <button type="submit" name="action" value="perbaiki" class="btn btn-warning rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-arrow-counterclockwise"></i> Kembalikan ke Operator UPTD (Revisi)
-                        </button>
-                        <button type="submit" name="action" value="tolak" class="btn btn-danger rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-x-circle-fill"></i> Ditolak Total
-                        </button>
-                    </div>
-                </form>
-            </div>
-        @endif
-
         <!-- PANEL TINDAKAN VERIFIKATOR -->
         @if(Auth::user()->role == 'Verifikator Keuangan' && $pengajuan->status == 'Menunggu Verifikasi')
             <div class="card card-custom border-warning border-top border-4 p-4 bg-light mb-4 shadow-sm">
-                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-shield-check text-warning"></i> Panel Verifikasi Administrasi Keuangan</h5>
-                <form action="{{ route('pengajuan.verifikasi', $pengajuan->id) }}" method="POST">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-shield-check text-warning"></i> Panel Verifikasi Administrasi Keuangan</h5>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="selectAllVerificationCheckboxes(true)">
+                        <i class="bi bi-check-all me-1"></i> Centang Semua Dokumen (1-Click)
+                    </button>
+                </div>
+                <form action="{{ route('pengajuan.verifikasi', $pengajuan->id) }}" method="POST" id="verificationForm">
                     @csrf
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Kelengkapan Dokumen Data Dukung ({{ $pengajuan->kategori_pengajuan }}):</label>
                         <div class="form-check mb-2">
-                            <input class="form-check-input border-secondary" type="checkbox" id="checkAkun" required> 
+                            <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkAkun" required> 
                             <label class="form-check-label small fw-semibold text-dark" for="checkAkun">
                                 Kesesuaian Nomor Akun DIPA ({{ $pengajuan->no_akun }}) & Ketersediaan Pagu Anggaran
                             </label>
                         </div>
                         @foreach($dataDukungList as $cIdx => $cDoc)
                             <div class="form-check mb-2">
-                                <input class="form-check-input border-secondary" type="checkbox" id="checkDoc_{{ $cIdx }}" required> 
+                                <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkDoc_{{ $cIdx }}" required> 
                                 <label class="form-check-label small" for="checkDoc_{{ $cIdx }}">
                                     Kelengkapan & Kesesuaian Berkas: <strong>{{ $cDoc['nama_dokumen'] ?? '' }}</strong>
                                 </label>
@@ -490,9 +797,33 @@
         @endif
 
         <!-- PANEL TINDAKAN PPK -->
-        @if(Auth::user()->role == 'PPK' && $pengajuan->status == 'Disetujui PPK')
+        @if(Auth::user()->role == 'PPK' && $pengajuan->status == 'Proses Persetujuan PPK')
             <div class="card card-custom border-primary border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <h5 class="fw-bold text-dark mb-3"><i class="bi bi-file-earmark-person text-primary"></i> Panel Persetujuan Akhir Komitmen (PPK)</h5>
+                
+                <!-- PPK EXECUTIVE SUMMARY CARD -->
+                <div class="p-3 bg-white border border-primary border-opacity-25 rounded-3 mb-3 shadow-sm">
+                    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-card-checklist me-1"></i> Ringkasan Eksekutif Finansial (PPK)</h6>
+                    <div class="row g-2 small">
+                        <div class="col-md-3">
+                            <span class="text-muted d-block">Kegiatan:</span>
+                            <strong class="text-dark">{{ $pengajuan->nama_kegiatan }}</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-muted d-block">Kategori & Akun:</span>
+                            <strong class="text-dark">{{ $pengajuan->kategori_pengajuan }} ({{ $pengajuan->no_akun }})</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-muted d-block">Pajak / Potongan:</span>
+                            <span class="text-danger fw-bold">Rp {{ number_format($pengajuan->potongan_pajak ?? 0, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-muted d-block">Nilai Neto Disetujui:</span>
+                            <span class="text-success fw-bold fs-6">Rp {{ number_format($pengajuan->nilai_neto, 0, ',', '.') }}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <form action="{{ route('pengajuan.ppkApproval', $pengajuan->id) }}" method="POST">
                     @csrf
                     <div class="mb-3">
@@ -565,25 +896,258 @@
         @endif
 
         <!-- PANEL PENYERAHAN UANG (BENDAHARA) -->
-        @if(Auth::user()->role == 'Bendahara' && $pengajuan->status == 'Dicairkan')
+        @if(in_array($pengajuan->status, ['Dicairkan', 'Selesai']))
             <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
-                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-stack text-success"></i> Panel Penyerahan Uang & Upload Bukti Serah Terima</h5>
-                <form action="{{ route('pengajuan.realisasi', $pengajuan->id) }}" method="POST">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-cash-stack text-success"></i> Panel Penyerahan Uang & Bukti Pembayaran</h5>
+                    <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold" onclick="printBuktiPenyerahanVoucher()">
+                        <i class="bi bi-printer-fill me-1"></i> Cetak Bukti Penyerahan Uang (Voucher)
+                    </button>
+                </div>
+
+                @if(Auth::user()->role == 'Bendahara' && $pengajuan->status == 'Dicairkan')
+                    <form action="{{ route('pengajuan.realisasi', $pengajuan->id) }}" method="POST">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Link Google Drive Tanda Bukti Penyerahan / Kuitansi Terima</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-google"></i></span>
+                                <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm" placeholder="Contoh: https://drive.google.com/..." required>
+                            </div>
+                            <div class="form-text text-muted small mt-2">
+                                Unggah berkas tanda bukti penyerahan uang (misal: scan kuitansi/tanda terima) ke Google Drive Anda, lalu masukkan linknya di atas.
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm mt-2">
+                            <i class="bi bi-check-circle-fill"></i> Konfirmasi Uang Diserahkan (Proses Selesai)
+                        </button>
+                    </form>
+                @endif
+            </div>
+        @endif
+
+        @php
+            $verifikatorDeadlineWarning = null;
+            if ($pengajuan->verifikator_spm_deadline && in_array($spjStatus, ['Belum Upload'])) {
+                $nowV = \Carbon\Carbon::now();
+                $deadlineV = \Carbon\Carbon::parse($pengajuan->verifikator_spm_deadline);
+                $diffHoursV = $nowV->diffInHours($deadlineV, false);
+                $diffMinutesV = $nowV->diffInMinutes($deadlineV, false) % 60;
+                
+                if ($diffHoursV < 0 || ($diffHoursV == 0 && $diffMinutesV < 0)) {
+                    $overdueDaysV = abs($nowV->diffInDays($deadlineV));
+                    $verifikatorDeadlineWarning = [
+                        'level' => 'danger',
+                        'badge' => '🚨 TERLAMBAT UPLOAD SPM/SP2D',
+                        'text' => 'Batas waktu 2 hari upload dokumen SPM/SP2D oleh Verifikator Keuangan telah TERLAMBAT ' . ($overdueDaysV > 0 ? $overdueDaysV . ' hari!' : 'beberapa jam!'),
+                        'is_overdue' => true
+                    ];
+                } elseif ($diffHoursV < 24) {
+                    $verifikatorDeadlineWarning = [
+                        'level' => 'warning',
+                        'badge' => '⚠️ SISA KERJA 1 HARI',
+                        'text' => 'Batas waktu upload dokumen SPM/SP2D tersisa ' . max(1, $diffHoursV) . ' jam ' . abs($diffMinutesV) . ' menit lagi.',
+                        'is_overdue' => false
+                    ];
+                } else {
+                    $verifikatorDeadlineWarning = [
+                        'level' => 'info',
+                        'badge' => '⏱️ TENGGAT 2 HARI',
+                        'text' => 'Batas waktu 2 hari upload dokumen SPM/SP2D tersisa ' . floor($diffHoursV / 24) . ' hari ' . ($diffHoursV % 24) . ' jam (Batas: ' . $deadlineV->format('d/m/Y H:i') . ').',
+                        'is_overdue' => false
+                    ];
+                }
+            }
+        @endphp
+
+        <!-- ========================================================= -->
+        <!-- PANEL UPLOAD SPJ VERIFIKATOR (Setelah status Selesai) -->
+        <!-- ========================================================= -->
+        @if(
+            (Auth::user()->role == 'Verifikator Keuangan' || Auth::user()->role == 'Admin Keuangan')
+            && $pengajuan->status == 'Selesai'
+            && in_array($spjStatus, ['Belum Upload'])
+        )
+            <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-cloud-arrow-up-fill text-success"></i> Panel Upload Dokumen SPJ (Verifikator)</h5>
+                    @if($verifikatorDeadlineWarning)
+                        <span class="badge bg-{{ $verifikatorDeadlineWarning['level'] }} px-3 py-1.5 rounded-pill fw-bold">
+                            {{ $verifikatorDeadlineWarning['badge'] }}
+                        </span>
+                    @endif
+                </div>
+                <p class="text-muted small mb-3">Upload dokumen SP2D, SPM, dan SPP ke Google Drive lalu masukkan link-nya di bawah ini.</p>
+                
+                @if($verifikatorDeadlineWarning)
+                    <div class="alert alert-{{ $verifikatorDeadlineWarning['level'] }} py-2.5 px-3 small mb-3 rounded-3 border">
+                        <i class="bi bi-clock-history me-1.5 fs-6 align-middle"></i> <strong>Informasi Tenggat 2 Hari:</strong> {{ $verifikatorDeadlineWarning['text'] }}
+                    </div>
+                @endif
+                <form action="{{ route('pengajuan.uploadSpjVerifikator', $pengajuan->id) }}" method="POST">
                     @csrf
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Link Google Drive Tanda Bukti Penyerahan / Kuitansi Terima</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-google"></i></span>
-                            <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm" placeholder="Contoh: https://drive.google.com/..." required>
-                        </div>
-                        <div class="form-text text-muted small mt-2">
-                            Unggah berkas tanda bukti penyerahan uang (misal: scan kuitansi/tanda terima) ke Google Drive Anda, lalu masukkan linknya di atas.
-                        </div>
+                        <label class="form-label small fw-semibold text-secondary">Link Google Drive Dokumen SP2D</label>
+                        <input type="url" name="spj_sp2d_link" class="form-control" placeholder="https://drive.google.com/..." value="{{ old('spj_sp2d_link', $pengajuan->spj_sp2d_link) }}">
                     </div>
-                    <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm mt-2">
-                        <i class="bi bi-check-circle-fill"></i> Konfirmasi Uang Diserahkan (Proses Selesai)
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Link Google Drive Dokumen SPM</label>
+                        <input type="url" name="spj_spm_link" class="form-control" placeholder="https://drive.google.com/..." value="{{ old('spj_spm_link', $pengajuan->spj_spm_link) }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Link Google Drive Dokumen SPP</label>
+                        <input type="url" name="spj_spp_link" class="form-control" placeholder="https://drive.google.com/..." value="{{ old('spj_spp_link', $pengajuan->spj_spp_link) }}">
+                    </div>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload & Kirim ke Pemohon
                     </button>
                 </form>
+            </div>
+        @endif
+
+        <!-- PANEL UPLOAD SPJ PEMOHON -->
+        @if(
+            $pengajuan->user_id == Auth::id()
+            && $spjStatus == 'Menunggu Upload Pemohon'
+        )
+            <div class="card card-custom border-info border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-file-earmark-arrow-up-fill text-info"></i> Panel Upload SPJ Lengkap (Pemohon)</h5>
+                    @if($spjDeadlineWarning && isset($spjDeadlineWarning['badge']))
+                        <span class="badge bg-{{ $spjDeadlineWarning['level'] }} px-3 py-1.5 rounded-pill fw-bold">
+                            {{ $spjDeadlineWarning['badge'] }}
+                        </span>
+                    @endif
+                </div>
+                <p class="text-muted small mb-3">Verifikator telah mengupload dokumen SP2D/SPM/SPP. Silakan upload SPJ lengkap Anda dalam batas waktu 5 hari.</p>
+                @if($spjDeadlineWarning)
+                    <div class="alert alert-{{ $spjDeadlineWarning['level'] }} py-2.5 px-3 small mb-3 rounded-3 border">
+                        <i class="bi bi-alarm-fill me-1.5 fs-6 align-middle"></i> <strong>Informasi Tenggat SPJ 5 Hari:</strong> {{ $spjDeadlineWarning['text'] }}
+                    </div>
+                @endif
+                <form action="{{ route('pengajuan.uploadSpjPemohon', $pengajuan->id) }}" method="POST">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Link Google Drive SPJ Lengkap</label>
+                        <input type="url" name="spj_lengkap_link" class="form-control" placeholder="https://drive.google.com/..." required>
+                    </div>
+                    <button type="submit" class="btn btn-info text-white rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-send-check-fill me-1"></i> Upload SPJ Lengkap
+                    </button>
+                </form>
+            </div>
+        @endif
+
+        @php
+            $spjVerifikatorDeadlineWarning = null;
+            if ($pengajuan->spj_verifikator_deadline && $spjStatus == 'Menunggu Verifikasi SPJ') {
+                $nowSV = \Carbon\Carbon::now();
+                $deadlineSV = \Carbon\Carbon::parse($pengajuan->spj_verifikator_deadline);
+                $diffHoursSV = $nowSV->diffInHours($deadlineSV, false);
+                $diffMinutesSV = $nowSV->diffInMinutes($deadlineSV, false) % 60;
+                
+                if ($diffHoursSV < 0 || ($diffHoursSV == 0 && $diffMinutesSV < 0)) {
+                    $overdueDaysSV = abs($nowSV->diffInDays($deadlineSV));
+                    $spjVerifikatorDeadlineWarning = [
+                        'level' => 'danger',
+                        'badge' => '🚨 TERLAMBAT VERIFIKASI SPJ (> 2 HARI)',
+                        'text' => '🚨 TERLAMBAT! Batas waktu 2 hari verifikasi SPJ oleh Verifikator Keuangan telah TERLAMBAT ' . ($overdueDaysSV > 0 ? $overdueDaysSV . ' hari!' : 'beberapa jam!'),
+                        'is_overdue' => true
+                    ];
+                } elseif ($diffHoursSV < 24) {
+                    $spjVerifikatorDeadlineWarning = [
+                        'level' => 'warning',
+                        'badge' => '⚠️ SISA KERJA 1 HARI',
+                        'text' => 'Batas waktu verifikasi SPJ Lengkap tersisa ' . max(1, $diffHoursSV) . ' jam ' . abs($diffMinutesSV) . ' menit lagi.',
+                        'is_overdue' => false
+                    ];
+                } else {
+                    $spjVerifikatorDeadlineWarning = [
+                        'level' => 'success',
+                        'badge' => '🟢 ⏱️ TENGGAT 2 HARI VERIFIKASI',
+                        'text' => 'Batas waktu 2 hari verifikasi SPJ Lengkap tersisa ' . floor($diffHoursSV / 24) . ' hari ' . ($diffHoursSV % 24) . ' jam (Batas: ' . $deadlineSV->format('d/m/Y H:i') . ').',
+                        'is_overdue' => false
+                    ];
+                }
+            }
+        @endphp
+
+        <!-- PANEL VERIFIKASI SPJ (Verifikator) -->
+        @if(
+            (Auth::user()->role == 'Verifikator Keuangan' || Auth::user()->role == 'Admin Keuangan')
+            && $spjStatus == 'Menunggu Verifikasi SPJ'
+        )
+            <div class="card card-custom border-warning border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-clipboard-check-fill text-warning"></i> Panel Verifikasi SPJ Lengkap</h5>
+                    @if($spjVerifikatorDeadlineWarning)
+                        <span class="badge bg-{{ $spjVerifikatorDeadlineWarning['level'] }} px-3 py-1.5 rounded-pill fw-bold">
+                            {{ $spjVerifikatorDeadlineWarning['badge'] }}
+                        </span>
+                    @endif
+                </div>
+                <p class="text-muted small mb-3">Pemohon telah mengupload SPJ lengkap. Silakan verifikasi kelengkapannya dalam jangka waktu 2 hari.</p>
+                
+                @if($spjVerifikatorDeadlineWarning)
+                    <div class="alert alert-{{ $spjVerifikatorDeadlineWarning['level'] }} py-2.5 px-3 small mb-3 rounded-3 border">
+                        <i class="bi bi-clock-history me-1.5 fs-6 align-middle"></i> <strong>Informasi Tenggat Verifikasi 2 Hari:</strong> {{ $spjVerifikatorDeadlineWarning['text'] }}
+                    </div>
+                @endif
+                @if($pengajuan->spj_lengkap_link)
+                    <div class="mb-3 p-3 bg-white border rounded-3">
+                        <strong class="small text-dark">SPJ Pemohon:</strong>
+                        <a href="{{ $pengajuan->spj_lengkap_link }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill px-3 ms-2"><i class="bi bi-box-arrow-up-right me-1"></i> Buka SPJ</a>
+                    </div>
+                @endif
+                <form action="{{ route('pengajuan.verifikasiSpj', $pengajuan->id) }}" method="POST">
+                    @csrf
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="setuju" class="btn btn-success rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-check-circle-fill"></i> SPJ Lengkap & Terverifikasi
+                        </button>
+                        <button type="submit" name="action" value="tolak" class="btn btn-danger rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> Tolak & Kembalikan ke Pemohon
+                        </button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
+        <!-- ========================================================= -->
+        <!-- POIN 2: PANEL ADMIN - EDIT TANGGAL & HAPUS PENGAJUAN -->
+        <!-- ========================================================= -->
+        @if(Auth::user()->role == 'Admin Keuangan')
+            <div class="card card-custom border-danger border-top border-4 p-4 bg-light mb-4 shadow-sm">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-gear-fill text-danger"></i> Panel Admin Keuangan</h5>
+                
+                <div class="row">
+                    <!-- Edit Tanggal -->
+                    <div class="col-md-6 mb-3">
+                        <form action="{{ route('pengajuan.adminEditDate', $pengajuan->id) }}" method="POST">
+                            @csrf
+                            @method('PUT')
+                            <label class="form-label small fw-semibold text-secondary">Edit Tanggal Pengajuan</label>
+                            <div class="input-group">
+                                <input type="date" name="tgl_pengajuan" class="form-control" value="{{ $pengajuan->tgl_pengajuan }}" required>
+                                <button type="submit" class="btn btn-warning btn-sm rounded-end px-3">
+                                    <i class="bi bi-pencil-fill"></i> Ubah Tanggal
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Hapus Pengajuan -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Hapus Histori Pengajuan</label>
+                        <form action="{{ route('pengajuan.adminDelete', $pengajuan->id) }}" method="POST" onsubmit="return confirm('PERINGATAN KRITIS!\n\nAnda akan menghapus pengajuan {{ $pengajuan->no_pengajuan }} secara permanen.\n\nTindakan ini TIDAK DAPAT dibatalkan.\n\nApakah Anda yakin?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-danger rounded-pill px-4 shadow-sm w-100">
+                                <i class="bi bi-trash3-fill me-1"></i> Hapus Pengajuan Ini
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         @endif
 
@@ -678,6 +1242,98 @@
                 statusDiv.className = 'mt-2 small fw-semibold text-warning';
                 statusDiv.innerHTML = '<i class="bi bi-exclamation-circle-fill me-1"></i> Teks PDF terbaca, namun nomor/tanggal SP2D tidak terdeteksi otomatis. Silakan isi manual.';
             }
+        }
+
+        function selectAllVerificationCheckboxes(state) {
+            const checkboxes = document.querySelectorAll('.verify-checkbox');
+            checkboxes.forEach(cb => cb.checked = state);
+        }
+
+        function printBuktiPenyerahanVoucher() {
+            const printWin = window.open('', '_blank', 'width=800,height=900');
+            const content = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Bukti Penyerahan Uang - {{ $pengajuan->no_pengajuan }}</title>
+                    <style>
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; font-size: 13px; color: #222; }
+                        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px; }
+                        .header h2 { margin: 0; font-size: 18px; text-transform: uppercase; }
+                        .header p { margin: 3px 0 0 0; font-size: 12px; color: #555; }
+                        .title-box { text-align: center; margin-bottom: 20px; text-decoration: underline; font-weight: bold; font-size: 15px; }
+                        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                        .table th, .table td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+                        .table th { background: #f4f4f4; width: 30%; }
+                        .sig-table { width: 100%; text-align: center; margin-top: 50px; }
+                        .sig-table td { width: 50%; vertical-align: top; }
+                        .sig-space { height: 70px; }
+                        .btn-print { background: #0d6efd; color: #fff; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 20px; margin-bottom: 20px; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <button onclick="window.print()" class="no-print btn-print">🖨️ Cetak Voucher Penyerahan Uang</button>
+                    <div class="header">
+                        <h2>KEMENTERIAN KETENAGAKERJAAN REPUBLIK INDONESIA</h2>
+                        <h3>BALAI BESAR PELATIHAN VOKASI DAN PRODUKTIVITAS (BPVP) SURAKARTA</h3>
+                        <p>Jl. Brosot No.18, Serengan, Surakarta, Jawa Tengah 57156</p>
+                    </div>
+
+                    <div class="title-box">BUKTI TANDA TERIMA / PENYERAHAN UANG</div>
+
+                    <table class="table">
+                        <tr>
+                            <th>Nomor Pengajuan</th>
+                            <td><strong>{{ $pengajuan->no_pengajuan }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Nomor SP2D</th>
+                            <td>{{ $pengajuan->no_sp2d ?? '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Nomor SPM</th>
+                            <td>{{ $pengajuan->no_spm ?? '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Bidang / Unit Kerja</th>
+                            <td>{{ $pengajuan->bidang }}</td>
+                        </tr>
+                        <tr>
+                            <th>Nama Kegiatan</th>
+                            <td>{{ $pengajuan->nama_kegiatan }}</td>
+                        </tr>
+                        <tr>
+                            <th>Jumlah Pembayaran (Neto)</th>
+                            <td><strong style="font-size: 16px; color: #198754;">Rp {{ number_format($pengajuan->nilai_neto, 0, ',', '.') }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Tanggal Penyerahan/Cair</th>
+                            <td>{{ $pengajuan->tgl_cair ? \Carbon\Carbon::parse($pengajuan->tgl_cair)->format('d F Y') : date('d F Y') }}</td>
+                        </tr>
+                    </table>
+
+                    <p>Telah diserahkan uang sejumlah tersebut di atas untuk keperluan pelaksanaan kegiatan sebagaimana uraian di atas.</p>
+
+                    <table class="sig-table">
+                        <tr>
+                            <td>
+                                <p>Yang Menyerahkan,<br><strong>Bendahara Pengeluaran</strong></p>
+                                <div class="sig-space"></div>
+                                <p><strong>({{ $pengajuan->bendahara->name ?? 'Bendahara' }})</strong></p>
+                            </td>
+                            <td>
+                                <p>Yang Menerima,<br><strong>Pemohon / Penanggung Jawab</strong></p>
+                                <div class="sig-space"></div>
+                                <p><strong>({{ $pengajuan->user->name ?? 'Pemohon' }})</strong></p>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+            `;
+            printWin.document.write(content);
+            printWin.document.close();
         }
     </script>
 @endsection
