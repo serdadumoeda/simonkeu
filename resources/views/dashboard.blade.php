@@ -790,13 +790,28 @@
                 <span class="text-muted small" style="font-size: 11.5px;">Menampilkan {{ count($daftarSpmMonitoring) }} dokumen terpantau di sistem</span>
             </div>
 
-            <!-- Integrated SLA Legend Cards & Live Search Input -->
+            <!-- Integrated SLA Legend Cards & Live Search Input with Status Filter -->
             <div class="d-flex flex-column gap-3 mt-2 w-100">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                     <span class="fw-bold text-dark" style="font-size: 13px;"><i class="bi bi-info-circle-fill text-primary me-1"></i> Panduan Status SLA</span>
-                    <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 320px;">
-                        <span class="input-group-text bg-white border-0 text-muted px-3"><i class="bi bi-search"></i></span>
-                        <input type="text" id="dashboard_spm_search" class="form-control border-0 px-2" placeholder="Cari cepat di tabel pemantauan SPM..." onkeyup="filterDashboardSpmTable()">
+                    
+                    <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                        <!-- Filter Status SLA -->
+                        <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 190px;">
+                            <span class="input-group-text bg-white border-0 text-muted px-2.5"><i class="bi bi-funnel"></i></span>
+                            <select id="dashboard_spm_status_filter" class="form-select border-0 px-1 fw-medium text-dark" style="font-size: 11.5px;" onchange="filterDashboardSpmTable()">
+                                <option value="">Semua SLA</option>
+                                <option value="tepat">🟢 Tepat Waktu</option>
+                                <option value="proses">🟡 Dalam Proses</option>
+                                <option value="terlambat">🔴 Terlambat SLA</option>
+                            </select>
+                        </div>
+
+                        <!-- Live Search Input -->
+                        <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 260px;">
+                            <span class="input-group-text bg-white border-0 text-muted px-3"><i class="bi bi-search"></i></span>
+                            <input type="text" id="dashboard_spm_search" class="form-control border-0 px-2" placeholder="Cari No Pengajuan, Kegiatan, SPM..." onkeyup="filterDashboardSpmTable()">
+                        </div>
                     </div>
                 </div>
                 <div class="sla-guide-container">
@@ -852,7 +867,10 @@
                         @php
                             $p = $item['pengajuan'];
                         @endphp
-                        <tr>
+                        @php
+                            $slaStatusAttr = $item['is_overall_terlambat'] ? 'terlambat' : ($item['is_overall_tepat_waktu'] ? 'tepat' : 'proses');
+                        @endphp
+                        <tr class="spm-data-row" data-sla-status="{{ $slaStatusAttr }}">
                             <td class="ps-3 py-3">
                                 <a href="{{ route('pengajuan.show', $p->id) }}" class="fw-bold text-primary text-decoration-none" title="Lihat Detail Berkas">
                                     {{ $p->no_pengajuan }}
@@ -949,12 +967,24 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">Tidak ada data SPM terpantau yang sesuai dengan filter pencarian.</td>
+                        <tr id="spm_empty_row">
+                            <td colspan="10" class="text-center text-muted py-4">Tidak ada data SPM terpantau yang sesuai dengan filter pencarian.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
+        </div>
+
+        <!-- SLA Table Pagination Controls (10 Rows Per Page) -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-3 border-top">
+            <div class="text-muted small fw-medium" id="spm_table_pagination_info" style="font-size: 12px;">
+                Menampilkan 1 - {{ min(10, count($daftarSpmMonitoring)) }} dari {{ count($daftarSpmMonitoring) }} data
+            </div>
+            <nav aria-label="SLA Table Pagination">
+                <ul class="pagination pagination-sm mb-0 rounded-pill shadow-sm overflow-hidden" id="spm_table_pagination_controls">
+                    <!-- Dynamic Pagination Buttons Generated via JS -->
+                </ul>
+            </nav>
         </div>
     </div>
 
@@ -989,28 +1019,113 @@
             const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
         });
 
-        // Client-side live search filter for Dashboard SPM Monitoring Table
-        function filterDashboardSpmTable() {
-            const input = document.getElementById('dashboard_spm_search');
-            if (!input) return;
-            const filter = input.value.toLowerCase();
+        // Client-side live search, SLA status filter & 10-row pagination
+        let currentSpmPage = 1;
+        const spmRowsPerPage = 10;
+
+        function filterDashboardSpmTable(resetPage = true) {
+            if (resetPage) currentSpmPage = 1;
+
+            const searchInput = document.getElementById('dashboard_spm_search');
+            const statusFilter = document.getElementById('dashboard_spm_status_filter');
             const table = document.getElementById('spm_monitoring_table');
             if (!table) return;
             const tbody = table.querySelector('tbody');
             if (!tbody) return;
-            const rows = tbody.getElementsByTagName('tr');
 
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                if (row.getElementsByTagName('td').length <= 1) continue; // Skip empty state row
-                const textContent = row.textContent || row.innerText;
-                if (textContent.toLowerCase().indexOf(filter) > -1) {
+            const allRows = Array.from(tbody.querySelectorAll('tr.spm-data-row'));
+            const emptyRow = document.getElementById('spm_empty_row');
+
+            const searchKeyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            const selectedStatus = statusFilter ? statusFilter.value.toLowerCase().trim() : '';
+
+            let matchingRows = [];
+
+            allRows.forEach(row => {
+                const text = (row.textContent || row.innerText).toLowerCase();
+                const rowStatus = (row.getAttribute('data-sla-status') || '').toLowerCase();
+
+                const matchesSearch = (searchKeyword === '' || text.indexOf(searchKeyword) > -1);
+                const matchesStatus = (selectedStatus === '' || rowStatus === selectedStatus);
+
+                if (matchesSearch && matchesStatus) {
+                    matchingRows.push(row);
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (emptyRow) {
+                emptyRow.style.display = (matchingRows.length === 0) ? '' : 'none';
+            }
+
+            // Pagination calculation
+            const totalMatching = matchingRows.length;
+            const totalPages = Math.ceil(totalMatching / spmRowsPerPage) || 1;
+            if (currentSpmPage > totalPages) currentSpmPage = totalPages;
+
+            const startIndex = (currentSpmPage - 1) * spmRowsPerPage;
+            const endIndex = startIndex + spmRowsPerPage;
+
+            matchingRows.forEach((row, idx) => {
+                if (idx >= startIndex && idx < endIndex) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
                 }
+            });
+
+            // Update Pagination Info
+            const infoElem = document.getElementById('spm_table_pagination_info');
+            if (infoElem) {
+                if (totalMatching === 0) {
+                    infoElem.textContent = 'Menampilkan 0 data';
+                } else {
+                    const startNum = startIndex + 1;
+                    const endNum = Math.min(endIndex, totalMatching);
+                    infoElem.textContent = `Menampilkan ${startNum} - ${endNum} dari ${totalMatching} data`;
+                }
             }
+
+            renderSpmPaginationControls(totalPages);
         }
+
+        function goToSpmPage(page) {
+            currentSpmPage = page;
+            filterDashboardSpmTable(false);
+        }
+
+        function renderSpmPaginationControls(totalPages) {
+            const controlsElem = document.getElementById('spm_table_pagination_controls');
+            if (!controlsElem) return;
+            controlsElem.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // Prev Button
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentSpmPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link py-1 px-2.5" href="javascript:void(0)" onclick="goToSpmPage(${currentSpmPage - 1})"><i class="bi bi-chevron-left"></i></a>`;
+            controlsElem.appendChild(prevLi);
+
+            // Page Buttons
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${i === currentSpmPage ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link py-1 px-2.5" href="javascript:void(0)" onclick="goToSpmPage(${i})">${i}</a>`;
+                controlsElem.appendChild(li);
+            }
+
+            // Next Button
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentSpmPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link py-1 px-2.5" href="javascript:void(0)" onclick="goToSpmPage(${currentSpmPage + 1})"><i class="bi bi-chevron-right"></i></a>`;
+            controlsElem.appendChild(nextLi);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            filterDashboardSpmTable(true);
+        });
 
         const labelBidang = {!! json_encode($labelBidang) !!};
         const angkaBidang = {!! json_encode($angkaBidang) !!};

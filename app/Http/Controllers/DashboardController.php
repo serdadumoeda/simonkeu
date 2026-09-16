@@ -112,7 +112,7 @@ class DashboardController extends Controller
         // =========================================================================
         // 5. KALKULASI SLA UTAMA (PENCAIRAN KEUANGAN 7 HARI / 1 MINGGU) & SLA PASCA CAIR
         // =========================================================================
-        $allPengajuanSla = (clone $query)->get();
+        $allPengajuanSla = (clone $query)->orderBy('tgl_pengajuan', 'desc')->orderBy('id', 'desc')->get();
 
         $pencairanTepatWaktuCount = 0;
         $pencairanDalamProsesCount = 0;
