@@ -32,11 +32,17 @@ class DashboardController extends Controller
         rsort($tahunListDb);
         $daftarTahun = array_values($tahunListDb);
 
-        // Ambil daftar bidang & UPTD unik
+        // Ambil daftar bidang & UPTD unik (termasuk nama akun UPTD)
+        $uptdUserNames = User::where('role', 'Operator Bidang')
+            ->where('bidang', 'UPTD')
+            ->pluck('name')
+            ->toArray();
+
         $daftarBidang = User::where('role', 'Operator Bidang')
             ->distinct()
             ->pluck('bidang')
             ->merge(PengajuanLs::distinct()->pluck('bidang'))
+            ->merge($uptdUserNames)
             ->filter(fn($val) => !empty($val) && $val !== 'None' && $val !== 'Keuangan')
             ->unique()
             ->sort()
@@ -46,7 +52,8 @@ class DashboardController extends Controller
         // Operator Bidang: hanya tampilkan bidang miliknya di dropdown filter
         if (Auth::user()->role == 'Operator Bidang') {
             $userB = Auth::user()->bidang;
-            $daftarBidang = array_values(array_filter($daftarBidang, fn($b) => $b === $userB));
+            $userN = Auth::user()->name;
+            $daftarBidang = array_values(array_filter($daftarBidang, fn($b) => $b === $userB || $b === $userN));
         }
 
         // 1. Siapkan Query Dasar dengan Filter Hak Akses & Tahun Anggaran
@@ -57,7 +64,12 @@ class DashboardController extends Controller
         }
 
         if (!empty($filterBidang)) {
-            $query->where('bidang', $filterBidang);
+            $query->where(function($q) use ($filterBidang) {
+                $q->where('bidang', $filterBidang)
+                  ->orWhereHas('user', function($uQ) use ($filterBidang) {
+                      $uQ->where('name', $filterBidang);
+                  });
+            });
         }
 
         // Jika yang login adalah Operator Bidang, dia hanya menghitung data bidangnya saja
@@ -269,12 +281,21 @@ class DashboardController extends Controller
         // Untuk Operator Bidang, daftarBidang sudah difilter ke bidang sendiri saja,
         // sehingga bidangPerformance juga otomatis hanya menampilkan bidangnya.
         $bidangPerformance = [];
-        foreach ($daftarBidang as $bName) {
-            $bQuery = (clone $query)->where('bidang', $bName);
+
+        // A. Proses Bidang Pusat (Non-UPTD): POKJA, Pemberdayaan, Penyelenggara, Produktivitas, Umum, dll.
+        $pusatBidangList = User::where('role', 'Operator Bidang')
+            ->where('bidang', '!=', 'UPTD')
+            ->pluck('bidang')
+            ->merge(PengajuanLs::where('bidang', '!=', 'UPTD')->pluck('bidang'))
+            ->filter(fn($val) => !empty($val) && $val !== 'None' && $val !== 'Keuangan' && $val !== 'UPTD')
+            ->unique()
+            ->sort()
+            ->values();
+
+        foreach ($pusatBidangList as $pName) {
+            $bQuery = (clone $query)->where('bidang', $pName);
             $totalB = $bQuery->count();
             if ($totalB == 0) continue;
-
-            $isUptd = str_contains(strtoupper($bName), 'UPTD');
 
             $spjUploadedCount = (clone $bQuery)->whereIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])->count();
             $spjTerlambatCount = (clone $bQuery)->where(function($q) {
@@ -283,8 +304,8 @@ class DashboardController extends Controller
             })->count();
 
             $bidangPerformance[] = [
-                'bidang' => $bName,
-                'is_uptd' => $isUptd,
+                'bidang' => $pName,
+                'is_uptd' => false,
                 'total_pengajuan' => $totalB,
                 'total_nilai' => (clone $bQuery)->sum('nilai_neto'),
                 'spj_uploaded' => $spjUploadedCount,
@@ -293,7 +314,64 @@ class DashboardController extends Controller
             ];
         }
 
-        // Urutkan UPTD di paling atas / kelompokkan rapi
+        // B. Breakdown Per User UPTD (misal: BLK_Kulon Progo, BLK_Wonogiri, BLK_Pacitan, BLK_Madiun, dll.)
+        $uptdUsers = User::where('bidang', 'UPTD')->get();
+        $uptdUserIdsInPengajuan = (clone $query)->where('bidang', 'UPTD')->pluck('user_id')->filter()->unique();
+        $allUptdUserIds = $uptdUsers->pluck('id')->merge($uptdUserIdsInPengajuan)->unique();
+        $allUptdUsers = User::whereIn('id', $allUptdUserIds)->get();
+
+        $trackedUptdUserIds = [];
+
+        foreach ($allUptdUsers as $uUptd) {
+            $bQuery = (clone $query)->where(function($q) use ($uUptd) {
+                $q->where('user_id', $uUptd->id)
+                  ->orWhere('bidang', $uUptd->name);
+            });
+
+            $totalB = $bQuery->count();
+            if ($totalB == 0) continue;
+
+            $trackedUptdUserIds[] = $uUptd->id;
+
+            $spjUploadedCount = (clone $bQuery)->whereIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])->count();
+            $spjTerlambatCount = (clone $bQuery)->where(function($q) {
+                $q->where('spj_deadline', '<', Carbon::now())
+                  ->whereNotIn('spj_status', ['SPJ Lengkap']);
+            })->count();
+
+            $bidangPerformance[] = [
+                'bidang' => $uUptd->name,
+                'is_uptd' => true,
+                'total_pengajuan' => $totalB,
+                'total_nilai' => (clone $bQuery)->sum('nilai_neto'),
+                'spj_uploaded' => $spjUploadedCount,
+                'spj_terlambat' => $spjTerlambatCount,
+                'timeliness_rate' => $totalB > 0 ? round((($totalB - $spjTerlambatCount) / $totalB) * 100, 1) : 100,
+            ];
+        }
+
+        // C. Fallback jika ada Pengajuan UPTD tanpa user_id terdaftar
+        $untrackedUptdQuery = (clone $query)->where('bidang', 'UPTD')->whereNotIn('user_id', $trackedUptdUserIds);
+        $untrackedCount = $untrackedUptdQuery->count();
+        if ($untrackedCount > 0) {
+            $spjUploadedCount = (clone $untrackedUptdQuery)->whereIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])->count();
+            $spjTerlambatCount = (clone $untrackedUptdQuery)->where(function($q) {
+                $q->where('spj_deadline', '<', Carbon::now())
+                  ->whereNotIn('spj_status', ['SPJ Lengkap']);
+            })->count();
+
+            $bidangPerformance[] = [
+                'bidang' => 'UPTD (Lainnya)',
+                'is_uptd' => true,
+                'total_pengajuan' => $untrackedCount,
+                'total_nilai' => (clone $untrackedUptdQuery)->sum('nilai_neto'),
+                'spj_uploaded' => $spjUploadedCount,
+                'spj_terlambat' => $spjTerlambatCount,
+                'timeliness_rate' => $untrackedCount > 0 ? round((($untrackedCount - $spjTerlambatCount) / $untrackedCount) * 100, 1) : 100,
+            ];
+        }
+
+        // Urutkan UPTD di paling atas / kelompokkan rapi berdasarkan nama
         usort($bidangPerformance, function($a, $b) {
             if ($a['is_uptd'] === $b['is_uptd']) {
                 return strcmp($a['bidang'], $b['bidang']);
