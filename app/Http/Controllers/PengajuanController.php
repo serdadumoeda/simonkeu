@@ -24,8 +24,12 @@ class PengajuanController extends Controller
         // =========================================================
 
         if ($user->role == 'Operator Bidang') {
-            // Operator HANYA melihat pengajuan milik bidangnya sendiri
-            $query->where('bidang', $user->bidang);
+            // Jika UPTD, filter per user_id agar data UPTD A tidak terlihat oleh UPTD B
+            if ($user->bidang === 'UPTD') {
+                $query->where('user_id', $user->id);
+            } else {
+                $query->where('bidang', $user->bidang);
+            }
 
         } elseif ($user->role == 'Verifikator Keuangan') {
             // Verifikator melihat dokumen yang sudah diajukan (bukan Draft)
@@ -35,6 +39,8 @@ class PengajuanController extends Controller
             // PPK HANYA melihat dokumen yang sudah lolos dari Verifikator dan seterusnya
             $query->whereIn('status', [
                 'Proses Persetujuan PPK',
+                'Penerbitan SPP',
+                'SPP Menunggu TTD UPTD',
                 'Diajukan ke SAKTI',
                 'Belum Terbit SP2D',
                 'Dicairkan',
@@ -45,6 +51,8 @@ class PengajuanController extends Controller
         } elseif ($user->role == 'Operator Pembayaran') {
             // Operator Pembayaran HANYA melihat dokumen yang sudah disetujui PPK
             $query->whereIn('status', [
+                'Penerbitan SPP',
+                'SPP Menunggu TTD UPTD',
                 'Diajukan ke SAKTI',
                 'Belum Terbit SP2D',
                 'Dicairkan',
@@ -70,6 +78,20 @@ class PengajuanController extends Controller
         $tahunAktif = $request->get('tahun', date('Y'));
         if ($tahunAktif !== 'semua' && !empty($tahunAktif)) {
             $query->whereYear('tgl_pengajuan', $tahunAktif);
+        }
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function($q) use ($search) {
+                $q->where('no_pengajuan', 'like', "%{$search}%")
+                  ->orWhere('nama_kegiatan', 'like', "%{$search}%")
+                  ->orWhere('no_akun', 'like', "%{$search}%")
+                  ->orWhere('jenis_belanja', 'like', "%{$search}%")
+                  ->orWhere('no_spm', 'like', "%{$search}%")
+                  ->orWhere('no_sp2d', 'like', "%{$search}%")
+                  ->orWhere('no_spp', 'like', "%{$search}%")
+                  ->orWhere('uraian_pembayaran', 'like', "%{$search}%");
+            });
         }
 
         if ($request->filled('bidang')) {
@@ -105,8 +127,8 @@ class PengajuanController extends Controller
             ->values()
             ->toArray();
 
-        // Eksekusi query dengan PAGINATION (10 data per halaman)
-        $daftarPengajuan = $query->paginate(10);
+        // Eksekusi query dengan PAGINATION (10 data per halaman) & simpan query string
+        $daftarPengajuan = $query->paginate(10)->withQueryString();
 
         // Kirim data ke tampilan HTML (Blade)
         return view('pengajuan.index', compact('daftarPengajuan', 'daftarBidang', 'daftarTahun', 'tahunAktif'));
@@ -377,12 +399,17 @@ class PengajuanController extends Controller
 
         // Cek otorisasi berdasarkan role
         if ($user->role == 'Operator Bidang') {
-            // Operator Bidang hanya melihat pengajuan dari bidangnya sendiri
+            $isUptd = $user->bidang === 'UPTD' || str_contains(strtoupper($user->bidang), 'UPTD');
+            if ($isUptd) {
+                // UPTD hanya bisa melihat pengajuan miliknya sendiri (sudah dicek user_id di atas)
+                abort(403, 'Akses Ditolak: Anda hanya bisa melihat pengajuan milik Anda sendiri.');
+            }
+            // Non-UPTD Operator Bidang hanya melihat pengajuan dari bidangnya sendiri
             if ($pengajuan->bidang != $user->bidang) {
                 abort(403, 'Akses Ditolak: Anda tidak berhak melihat pengajuan dari bidang lain.');
             }
         }
-        // Verifikator Keuangan, PPK, Operator Pembayaran, Bendahara, Kepala Balai bisa melihat semua pengajuan
+        // Verifikator Keuangan, PPK, Operator Pembayaran, Bendahara — bisa melihat pengajuan sesuai tahapan workflow
         // (panel aksi di view blade sudah mengecek status yang relevan untuk ditampilkan)
 
         return view('pengajuan.show', compact('pengajuan'));
@@ -446,8 +473,14 @@ class PengajuanController extends Controller
                 $pengajuan = PengajuanLs::findOrFail($id);
                 $pengajuan->verifikator_id = $user->id;
 
+                $catatan = $request->catatan_koreksi ?? $request->catatan;
+                if (in_array($request->action, ['perbaiki', 'tolak']) && empty($catatan)) {
+                    return back()->with('error', 'Catatan / Alasan revisi wajib diisi saat meminta perbaikan atau menolak pengajuan.');
+                }
+
                 if ($request->action == 'setuju') {
                     $pengajuan->status = 'Proses Persetujuan PPK';
+                    $pengajuan->addHistoriCatatan('Verifikasi Keuangan', 'Disetujui', $catatan, $user);
                     
                     $ppks = User::where('role', 'PPK')->get();
                     foreach ($ppks as $ppk) {
@@ -472,19 +505,21 @@ class PengajuanController extends Controller
                     } catch (\Throwable $e) {}
                 } elseif ($request->action == 'perbaiki') {
                     $pengajuan->status = 'Perlu Perbaikan';
-                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+                    $pengajuan->catatan_koreksi = $catatan;
+                    $pengajuan->addHistoriCatatan('Verifikasi Keuangan', 'Perlu Perbaikan', $catatan, $user);
                     
                     try {
                         Notification::create([
                             'user_id' => $pengajuan->user_id,
                             'title' => 'Revisi Pengajuan Berkas',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki: ' . ($request->catatan_koreksi ?? ''),
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki: ' . ($catatan ?? ''),
                             'is_read' => false,
                         ]);
                     } catch (\Throwable $e) {}
                 } else {
                     $pengajuan->status = 'Draft';
-                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+                    $pengajuan->catatan_koreksi = $catatan;
+                    $pengajuan->addHistoriCatatan('Verifikasi Keuangan', 'Ditolak Total (Draft)', $catatan, $user);
 
                     try {
                         Notification::create([
@@ -500,7 +535,7 @@ class PengajuanController extends Controller
                 return redirect()->route('pengajuan.index')->with('success', 'Status pengajuan berhasil diperbarui oleh Verifikator.');
             });
         } catch (\Throwable $e) {
-            return back()->with('error', 'Gagal memproses verifikasi keuangan: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses verifikasi: ' . $e->getMessage());
         }
     }
 
@@ -521,39 +556,79 @@ class PengajuanController extends Controller
                 $pengajuan = PengajuanLs::findOrFail($id);
                 $pengajuan->ppk_id = $user->id;
 
+                $catatan = $request->catatan_koreksi ?? $request->catatan;
+
                 if ($request->action == 'setuju') {
-                    $pengajuan->status = 'Diajukan ke SAKTI';
-                    
-                    $operators = User::where('role', 'Operator Pembayaran')->get();
-                    foreach ($operators as $op) {
+                    // Cek apakah pemohon dari UPTD
+                    $pemohon = User::find($pengajuan->user_id);
+                    $isUptd = $pemohon && ($pemohon->bidang === 'UPTD' || str_contains(strtoupper($pemohon->bidang), 'UPTD'));
+
+                    $pengajuan->addHistoriCatatan('Persetujuan PPK', 'Disetujui', $catatan, $user);
+
+                    if ($isUptd) {
+                        // UPTD: masuk ke alur SPP multi-tahap
+                        $pengajuan->status = 'Penerbitan SPP';
+                        
+                        $operators = User::where('role', 'Operator Pembayaran')->get();
+                        foreach ($operators as $op) {
+                            try {
+                                Notification::create([
+                                    'user_id' => $op->id,
+                                    'title' => 'Penerbitan SPP Baru (UPTD)',
+                                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' dari UPTD telah disetujui PPK, silakan terbitkan SPP dan unggah link dokumen SPP.',
+                                    'is_read' => false,
+                                ]);
+                            } catch (\Throwable $e) {}
+                        }
+
+                        // Notifikasi ke Pemohon
                         try {
                             Notification::create([
-                                'user_id' => $op->id,
-                                'title' => 'Pengajuan SPM SAKTI',
-                                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah disetujui PPK, silakan ajukan SPM di Aplikasi SAKTI.',
+                                'user_id' => $pengajuan->user_id,
+                                'title' => 'Disetujui oleh PPK',
+                                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' Anda telah disetujui PPK dan akan diproses penerbitan SPP oleh Operator Pembayaran.',
+                                'is_read' => false,
+                            ]);
+                        } catch (\Throwable $e) {}
+                    } else {
+                        // Non-UPTD: langsung ke SAKTI (skip SPP)
+                        $pengajuan->status = 'Diajukan ke SAKTI';
+                        
+                        $operators = User::where('role', 'Operator Pembayaran')->get();
+                        foreach ($operators as $op) {
+                            try {
+                                Notification::create([
+                                    'user_id' => $op->id,
+                                    'title' => 'Proses SPM SAKTI Baru',
+                                    'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' telah disetujui PPK, silakan proses SPM di Aplikasi SAKTI (PPSPM).',
+                                    'is_read' => false,
+                                ]);
+                            } catch (\Throwable $e) {}
+                        }
+
+                        // Notifikasi ke Pemohon
+                        try {
+                            Notification::create([
+                                'user_id' => $pengajuan->user_id,
+                                'title' => 'Disetujui oleh PPK',
+                                'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' Anda telah disetujui PPK dan akan diproses SPM di SAKTI.',
                                 'is_read' => false,
                             ]);
                         } catch (\Throwable $e) {}
                     }
-
-                    // Notifikasi ke Pemohon
-                    try {
-                        Notification::create([
-                            'user_id' => $pengajuan->user_id,
-                            'title' => 'Disetujui oleh PPK',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' Anda telah disetujui PPK dan diproses di Aplikasi SAKTI.',
-                            'is_read' => false,
-                        ]);
-                    } catch (\Throwable $e) {}
                 } else {
+                    if (empty($catatan)) {
+                        return back()->with('error', 'Catatan / Alasan revisi wajib diisi saat meminta perbaikan.');
+                    }
                     $pengajuan->status = 'Perlu Perbaikan';
-                    $pengajuan->catatan_koreksi = $request->catatan_koreksi;
+                    $pengajuan->catatan_koreksi = $catatan;
+                    $pengajuan->addHistoriCatatan('Persetujuan PPK', 'Perlu Perbaikan', $catatan, $user);
                     
                     try {
                         Notification::create([
                             'user_id' => $pengajuan->user_id,
                             'title' => 'Revisi Berkas oleh PPK',
-                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan keputusan PPK: ' . ($request->catatan_koreksi ?? ''),
+                            'message' => 'Berkas ' . $pengajuan->no_pengajuan . ' perlu diperbaiki berdasarkan keputusan PPK: ' . ($catatan ?? ''),
                             'is_read' => false,
                         ]);
                     } catch (\Throwable $e) {}
@@ -564,6 +639,182 @@ class PengajuanController extends Controller
             });
         } catch (\Throwable $e) {
             return back()->with('error', 'Gagal memproses persetujuan PPK: ' . $e->getMessage());
+        }
+    }
+
+    // 6.B PROSES PENERBITAN SPP (Operator Pembayaran / LINA) — Upload Link SPP
+    public function penerbitanSpp(Request $request, $id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Operator Pembayaran' && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Operator Pembayaran yang dapat menerbitkan SPP.');
+        }
+
+        try {
+            return DB::transaction(function () use ($request, $id, $user) {
+                try {
+                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+                } catch (\Throwable $e) {}
+
+                $pengajuan = PengajuanLs::findOrFail($id);
+
+                if ($pengajuan->status != 'Penerbitan SPP') {
+                    return back()->with('error', 'Berkas tidak dalam status Penerbitan SPP.');
+                }
+
+                $request->validate([
+                    'no_spp' => 'required|string',
+                    'spp_link' => 'required|url',
+                ]);
+
+                $pengajuan->no_spp = $request->no_spp;
+                $pengajuan->tgl_spp = now();
+                $pengajuan->spp_operator_id = $user->id;
+                $pengajuan->spp_link = $request->spp_link;
+                $pengajuan->status = 'SPP Menunggu TTD UPTD';
+                $pengajuan->addHistoriCatatan('Penerbitan SPP', 'SPP Diterbitkan', $request->catatan ?? ('No. SPP: ' . $request->no_spp), $user);
+                $pengajuan->save();
+
+                // Notifikasi ke Pemohon UPTD untuk download, TTD, dan upload kembali
+                try {
+                    Notification::create([
+                        'user_id' => $pengajuan->user_id,
+                        'title' => '📄 SPP Diterbitkan — Silakan Tanda Tangani',
+                        'message' => 'Dokumen SPP nomor ' . $pengajuan->no_spp . ' untuk berkas ' . $pengajuan->no_pengajuan . ' telah diterbitkan. Silakan download, tanda tangani (tanpa cap basah), dan unggah kembali SPP bertandatangan.',
+                        'is_read' => false,
+                    ]);
+                } catch (\Throwable $e) {}
+
+                return redirect()->route('pengajuan.show', $id)->with('success', 'SPP berhasil diterbitkan. Menunggu tanda tangan dari UPTD.');
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menerbitkan SPP: ' . $e->getMessage());
+        }
+    }
+
+    // 6.C UPLOAD SPP BERTANDATANGAN OLEH UPTD
+    public function uploadSppUptd(Request $request, $id)
+    {
+        $user = Auth::user();
+        $pengajuan = PengajuanLs::findOrFail($id);
+
+        // Hanya pemohon asli (UPTD) atau Admin yang boleh upload SPP bertandatangan
+        if ($pengajuan->user_id != $user->id && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya pemohon UPTD yang dapat mengunggah SPP bertandatangan.');
+        }
+
+        if ($pengajuan->status != 'SPP Menunggu TTD UPTD') {
+            return back()->with('error', 'Berkas tidak dalam status menunggu tanda tangan SPP.');
+        }
+
+        try {
+            return DB::transaction(function () use ($request, $id, $pengajuan, $user) {
+                try {
+                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+                } catch (\Throwable $e) {}
+
+                $request->validate([
+                    'spp_signed_link' => 'required|url',
+                ]);
+
+                $pengajuan->spp_signed_link = $request->spp_signed_link;
+                $pengajuan->spp_signed_at = now();
+                $pengajuan->addHistoriCatatan('Penandatanganan SPP (UPTD)', 'Dokumen Diunggah', $request->catatan ?? 'SPP bertandatangan diunggah oleh UPTD', $user);
+                $pengajuan->save();
+
+                // Notifikasi ke Operator Pembayaran (LINA) untuk validasi
+                $operators = User::where('role', 'Operator Pembayaran')->get();
+                foreach ($operators as $op) {
+                    try {
+                        Notification::create([
+                            'user_id' => $op->id,
+                            'title' => '✅ SPP Bertandatangan Diunggah UPTD',
+                            'message' => 'SPP bertandatangan untuk berkas ' . $pengajuan->no_pengajuan . ' telah diunggah oleh UPTD. Silakan validasi dan lanjutkan ke proses SAKTI (SPM).',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+                }
+
+                return redirect()->route('pengajuan.show', $id)->with('success', 'SPP bertandatangan berhasil diunggah. Menunggu validasi dari Operator Pembayaran.');
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal mengunggah SPP bertandatangan: ' . $e->getMessage());
+        }
+    }
+
+    // 6.D VALIDASI SPP BERTANDATANGAN OLEH LINA DAN LANJUTKAN KE SAKTI
+    public function validasiSppUptd(Request $request, $id)
+    {
+        $user = Auth::user();
+        if ($user->role != 'Operator Pembayaran' && $user->role != 'Admin Keuangan') {
+            abort(403, 'Akses Ditolak: Hanya Operator Pembayaran yang dapat memvalidasi SPP.');
+        }
+
+        try {
+            return DB::transaction(function () use ($request, $id, $user) {
+                try {
+                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
+                } catch (\Throwable $e) {}
+
+                $pengajuan = PengajuanLs::findOrFail($id);
+
+                if ($pengajuan->status != 'SPP Menunggu TTD UPTD' || !$pengajuan->spp_signed_link) {
+                    return back()->with('error', 'SPP bertandatangan belum diunggah oleh UPTD.');
+                }
+
+                $catatan = $request->catatan;
+
+                if ($request->action == 'perbaiki') {
+                    if (empty($catatan)) {
+                        return back()->with('error', 'Catatan / Alasan penolakan SPP bertandatangan wajib diisi.');
+                    }
+                    $pengajuan->spp_signed_link = null; // minta upload ulang
+                    $pengajuan->addHistoriCatatan('Validasi SPP UPTD', 'Perlu Perbaikan', $catatan, $user);
+                    $pengajuan->save();
+
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => '⚠️ SPP Bertandatangan Perlu Diperbaiki',
+                            'message' => 'SPP bertandatangan untuk berkas ' . $pengajuan->no_pengajuan . ' ditolak oleh Operator Pembayaran. Catatan: "' . $catatan . '". Silakan unggah kembali dokumen SPP yang benar.',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+
+                    return redirect()->route('pengajuan.show', $id)->with('success', 'SPP bertandatangan dikembalikan ke UPTD untuk diperbaiki.');
+                } else {
+                    $pengajuan->status = 'Diajukan ke SAKTI';
+                    $pengajuan->addHistoriCatatan('Validasi SPP UPTD', 'Disetujui / Valid', $catatan, $user);
+                    $pengajuan->save();
+
+                    // Notifikasi ke Operator Pembayaran (PPSPM) untuk proses SPM
+                    $operators = User::where('role', 'Operator Pembayaran')->get();
+                    foreach ($operators as $op) {
+                        try {
+                            Notification::create([
+                                'user_id' => $op->id,
+                                'title' => 'SPP Valid — Proses SPM SAKTI',
+                                'message' => 'SPP ' . $pengajuan->no_spp . ' untuk berkas ' . $pengajuan->no_pengajuan . ' telah divalidasi. Silakan proses SPM di Aplikasi SAKTI (PPSPM).',
+                                'is_read' => false,
+                            ]);
+                        } catch (\Throwable $e) {}
+                    }
+
+                    // Notifikasi ke Pemohon UPTD
+                    try {
+                        Notification::create([
+                            'user_id' => $pengajuan->user_id,
+                            'title' => 'SPP Bertandatangan Divalidasi',
+                            'message' => 'SPP bertandatangan untuk berkas ' . $pengajuan->no_pengajuan . ' telah divalidasi. Berkas akan dilanjutkan ke proses SAKTI (SPM).',
+                            'is_read' => false,
+                        ]);
+                    } catch (\Throwable $e) {}
+
+                    return redirect()->route('pengajuan.show', $id)->with('success', 'SPP bertandatangan divalidasi. Berkas dilanjutkan ke proses SAKTI (SPM/PPSPM).');
+                }
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal memvalidasi SPP: ' . $e->getMessage());
         }
     }
 
@@ -578,6 +829,8 @@ class PengajuanController extends Controller
                 \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
             } catch (\Throwable $e) {}
 
+            $catatan = $request->catatan;
+
             if ($user->role == 'Operator Pembayaran' || $user->role == 'Admin Keuangan') {
                 if ($request->has('no_spm')) {
                     $request->validate([
@@ -587,6 +840,7 @@ class PengajuanController extends Controller
                     $pengajuan->tgl_spm = date('Y-m-d');
                     $pengajuan->operator_pembayaran_id = $user->id;
                     $pengajuan->status = 'Belum Terbit SP2D';
+                    $pengajuan->addHistoriCatatan('Proses SAKTI / SPM (PPSPM)', 'SPM Diterbitkan', $catatan ?? ('No. SPM: ' . $request->no_spm), $user);
                     
                     $bendaharas = User::where('role', 'Bendahara')->get();
                     foreach ($bendaharas as $b) {
@@ -627,6 +881,7 @@ class PengajuanController extends Controller
 
                     // Otomatis set batas waktu 2 hari untuk Verifikator Keuangan upload SPM/SP2D
                     $pengajuan->verifikator_spm_deadline = now()->addDays(2);
+                    $pengajuan->addHistoriCatatan('Penyerahan Uang (Bendahara)', 'Uang Diserahkan', $catatan ?? 'Bukti penyerahan uang diunggah', $user);
                     
                     // 1. Notifikasi ke Pemohon
                     try {
@@ -651,11 +906,17 @@ class PengajuanController extends Controller
                         } catch (\Throwable $e) {}
                     }
                 } elseif ($request->has('no_sp2d')) {
-                    $request->validate(['no_sp2d' => 'required', 'tgl_cair' => 'required']);
+                    $request->validate([
+                        'no_sp2d' => 'required',
+                        'tgl_cair' => 'required',
+                        'spj_sp2d_link' => 'required|url',
+                    ]);
                     $pengajuan->no_sp2d = $request->no_sp2d;
                     $pengajuan->tgl_cair = $request->tgl_cair;
+                    $pengajuan->spj_sp2d_link = $request->spj_sp2d_link;
                     $pengajuan->bendahara_id = $user->id;
                     $pengajuan->status = 'Dicairkan';
+                    $pengajuan->addHistoriCatatan('Pencairan SP2D (Bendahara)', 'SP2D Diterbitkan', $catatan ?? ('No. SP2D: ' . $request->no_sp2d), $user);
                     
                     try {
                         Notification::create([
@@ -679,6 +940,20 @@ class PengajuanController extends Controller
     public function exportExcel(Request $request)
     {
         $query = PengajuanLs::orderBy('created_at', 'desc');
+        $user = Auth::user();
+
+        // =========================================================
+        // FILTER HAK AKSES: Hanya export data sesuai wewenang role
+        // =========================================================
+        if ($user->role == 'Operator Bidang') {
+            if ($user->bidang === 'UPTD' || str_contains(strtoupper($user->bidang), 'UPTD')) {
+                $query->where('user_id', $user->id);
+            } else {
+                $query->where('bidang', $user->bidang);
+            }
+        }
+        // Admin Keuangan & Kepala Balai: tanpa filter (export semua)
+        // Role sentral (Verifikator, PPK, OP, Bendahara): tidak dikunci per tahapan
 
         $tahunAktif = $request->get('tahun', date('Y'));
         if ($tahunAktif !== 'semua' && !empty($tahunAktif)) {
@@ -705,6 +980,30 @@ class PengajuanController extends Controller
     public function cetak($id)
     {
         $pengajuan = PengajuanLs::findOrFail($id);
+        $user = Auth::user();
+
+        // Admin Keuangan dan Kepala Balai bisa cetak semua
+        if ($user->role == 'Admin Keuangan' || $user->role == 'Kepala Balai') {
+            return view('pengajuan.cetak', compact('pengajuan'));
+        }
+
+        // Pemilik dokumen selalu bisa cetak dokumennya
+        if ($pengajuan->user_id == $user->id) {
+            return view('pengajuan.cetak', compact('pengajuan'));
+        }
+
+        // Operator Bidang: hanya cetak dokumen bidangnya
+        if ($user->role == 'Operator Bidang') {
+            $isUptd = $user->bidang === 'UPTD' || str_contains(strtoupper($user->bidang), 'UPTD');
+            if ($isUptd) {
+                abort(403, 'Akses Ditolak: Anda hanya bisa mencetak pengajuan milik Anda sendiri.');
+            }
+            if ($pengajuan->bidang != $user->bidang) {
+                abort(403, 'Akses Ditolak: Anda tidak berhak mencetak pengajuan dari bidang lain.');
+            }
+        }
+        // Role sentral: tidak dikunci
+
         return view('pengajuan.cetak', compact('pengajuan'));
     }
 
@@ -727,19 +1026,20 @@ class PengajuanController extends Controller
         }
 
         try {
-            if ($request->filled('spj_sp2d_link')) {
-                $pengajuan->spj_sp2d_link = $request->spj_sp2d_link;
-            }
-            if ($request->filled('spj_spm_link')) {
-                $pengajuan->spj_spm_link = $request->spj_spm_link;
-            }
-            if ($request->filled('spj_spp_link')) {
-                $pengajuan->spj_spp_link = $request->spj_spp_link;
-            }
+            $request->validate([
+                'spj_sp2d_link' => 'required|url',
+                'spj_spm_link' => 'required|url',
+                'spj_spp_link' => 'required|url',
+            ]);
+
+            $pengajuan->spj_sp2d_link = $request->spj_sp2d_link;
+            $pengajuan->spj_spm_link = $request->spj_spm_link;
+            $pengajuan->spj_spp_link = $request->spj_spp_link;
 
             $pengajuan->spj_status = 'Menunggu Upload Pemohon';
             // Set batas waktu 5 hari tepat sejak Verifikator Keuangan mengunggah SPM/SP2D
             $pengajuan->spj_deadline = now()->addDays(5)->format('Y-m-d H:i:s');
+            $pengajuan->addHistoriCatatan('Upload SPM/SP2D (Verifikator)', 'Dokumen Diunggah', $request->catatan ?? 'Dokumen pendukung SPJ diunggah', $user);
             $pengajuan->save();
 
             // Notifikasi ke pemohon (Batas 5 hari)
@@ -780,6 +1080,7 @@ class PengajuanController extends Controller
             $pengajuan->spj_status = 'Menunggu Verifikasi SPJ';
             // Set batas waktu 2 hari tepat sejak Pemohon mengunggah SPJ Lengkap
             $pengajuan->spj_verifikator_deadline = now()->addDays(2)->format('Y-m-d H:i:s');
+            $pengajuan->addHistoriCatatan('Upload SPJ Lengkap (Pemohon)', 'Dokumen Diunggah', $request->catatan ?? 'SPJ Lengkap diunggah oleh Pemohon', $user);
             $pengajuan->save();
 
             // Notifikasi ke Verifikator Keuangan (Batas 2 hari)
@@ -815,18 +1116,26 @@ class PengajuanController extends Controller
             return back()->with('error', 'SPJ belum diupload lengkap oleh pemohon.');
         }
 
+        $catatanSpj = $request->catatan_spj ?? $request->catatan;
+
+        if ($request->action == 'perbaiki' && empty($catatanSpj)) {
+            return back()->with('error', 'Catatan / Alasan wajib diisi saat menolak atau meminta perbaikan SPJ.');
+        }
+
         try {
             if ($request->action == 'setuju') {
                 $pengajuan->spj_status = 'SPJ Lengkap';
                 $pengajuan->spj_verified_at = now();
                 $pengajuan->spj_verified_by = $user->id;
+                $pengajuan->catatan_spj = $catatanSpj;
+                $pengajuan->addHistoriCatatan('Verifikasi SPJ Lengkap', 'Disetujui & Verified 100%', $catatanSpj, $user);
                 $pengajuan->save();
 
                 try {
                     Notification::create([
                         'user_id' => $pengajuan->user_id,
                         'title' => 'SPJ Telah Diverifikasi ✅',
-                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' telah diverifikasi dan dinyatakan lengkap oleh Verifikator Keuangan.',
+                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' telah diverifikasi dan dinyatakan lengkap oleh Verifikator Keuangan.' . ($catatanSpj ? ' Catatan: "' . $catatanSpj . '"' : ''),
                         'is_read' => false,
                     ]);
                 } catch (\Throwable $e) {}
@@ -849,13 +1158,15 @@ class PengajuanController extends Controller
                 // Kembalikan ke pemohon untuk upload ulang
                 $pengajuan->spj_status = 'Menunggu Upload Pemohon';
                 $pengajuan->spj_lengkap_link = null;
+                $pengajuan->catatan_spj = $catatanSpj;
+                $pengajuan->addHistoriCatatan('Verifikasi SPJ Lengkap', 'Ditolak / Perlu Perbaikan', $catatanSpj, $user);
                 $pengajuan->save();
 
                 try {
                     Notification::create([
                         'user_id' => $pengajuan->user_id,
                         'title' => 'SPJ Perlu Diperbaiki',
-                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' ditolak oleh Verifikator. Silakan upload ulang SPJ yang benar.',
+                        'message' => 'SPJ untuk pengajuan ' . $pengajuan->no_pengajuan . ' ditolak oleh Verifikator: "' . ($catatanSpj ?? '') . '". Silakan upload ulang SPJ yang benar.',
                         'is_read' => false,
                     ]);
                 } catch (\Throwable $e) {}

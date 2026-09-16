@@ -33,6 +33,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pengajuan/{id}/verifikasi-uptd', [PengajuanController::class, 'verifikasiPicUptd'])->name('pengajuan.verifikasiPicUptd');
     Route::post('/pengajuan/{id}/verifikasi', [PengajuanController::class, 'verifikasi'])->name('pengajuan.verifikasi');
     Route::post('/pengajuan/{id}/approval-ppk', [PengajuanController::class, 'ppkApproval'])->name('pengajuan.ppkApproval');
+    Route::post('/pengajuan/{id}/penerbitan-spp', [PengajuanController::class, 'penerbitanSpp'])->name('pengajuan.penerbitanSpp');
+    Route::post('/pengajuan/{id}/upload-spp-uptd', [PengajuanController::class, 'uploadSppUptd'])->name('pengajuan.uploadSppUptd');
+    Route::post('/pengajuan/{id}/validasi-spp-uptd', [PengajuanController::class, 'validasiSppUptd'])->name('pengajuan.validasiSppUptd');
     Route::post('/pengajuan/{id}/realisasi', [PengajuanController::class, 'realisasi'])->name('pengajuan.realisasi');
 
     // --- ALUR PENATAUSAHAAN SPJ (3 STATUS BARU) ---

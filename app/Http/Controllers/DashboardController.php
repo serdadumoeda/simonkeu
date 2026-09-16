@@ -43,6 +43,12 @@ class DashboardController extends Controller
             ->values()
             ->toArray();
 
+        // Operator Bidang: hanya tampilkan bidang miliknya di dropdown filter
+        if (Auth::user()->role == 'Operator Bidang') {
+            $userB = Auth::user()->bidang;
+            $daftarBidang = array_values(array_filter($daftarBidang, fn($b) => $b === $userB));
+        }
+
         // 1. Siapkan Query Dasar dengan Filter Hak Akses & Tahun Anggaran
         $query = PengajuanLs::query();
 
@@ -56,14 +62,23 @@ class DashboardController extends Controller
 
         // Jika yang login adalah Operator Bidang, dia hanya menghitung data bidangnya saja
         if (Auth::user()->role == 'Operator Bidang') {
-            $query->where('bidang', Auth::user()->bidang);
+            $userB = Auth::user()->bidang;
+            if ($userB === 'UPTD' || str_contains(strtoupper($userB), 'UPTD')) {
+                // UPTD: filter per user_id agar data UPTD A tidak terlihat oleh UPTD B
+                $query->where('user_id', Auth::id());
+            } else {
+                $query->where('bidang', Auth::user()->bidang);
+            }
         }
 
         // 2. Menghitung Statistik Status
         $totalPengajuan = $query->count();
+        $draftCount = (clone $query)->where('status', 'Draft')->count();
         $menungguVerifikasi = (clone $query)->where('status', 'Menunggu Verifikasi')->count();
         $perluPerbaikan = (clone $query)->where('status', 'Perlu Perbaikan')->count();
         $prosesPersetujuanPpk = (clone $query)->where('status', 'Proses Persetujuan PPK')->count();
+        $penerbitanSpp = (clone $query)->where('status', 'Penerbitan SPP')->count();
+        $sppMenungguTtd = (clone $query)->where('status', 'SPP Menunggu TTD UPTD')->count();
         $diajukanSakti = (clone $query)->where('status', 'Diajukan ke SAKTI')->count();
         $menungguSp2d = (clone $query)->where('status', 'Belum Terbit SP2D')->count();
         $dicairkan = (clone $query)->whereIn('status', ['Dicairkan', 'Selesai'])->count();
@@ -83,9 +98,13 @@ class DashboardController extends Controller
         }
 
         // =========================================================================
-        // 5. KALKULASI EXECUTIVE MONITORING KETEPATAN WAKTU (SLA) & STAKEHOLDER
+        // 5. KALKULASI SLA UTAMA (PENCAIRAN KEUANGAN 7 HARI / 1 MINGGU) & SLA PASCA CAIR
         // =========================================================================
         $allPengajuanSla = (clone $query)->get();
+
+        $pencairanTepatWaktuCount = 0;
+        $pencairanDalamProsesCount = 0;
+        $pencairanTerlambatCount = 0;
 
         $spmTepatWaktuCount = 0;
         $spmTerlambatCount = 0;
@@ -99,7 +118,34 @@ class DashboardController extends Controller
         foreach ($allPengajuanSla as $p) {
             $now = Carbon::now();
 
-            // A. Evaluasi SLA Upload SPM/SP2D (2 Hari dari Bendahara Penyerahan Uang)
+            // A. SLA UTAMA: Pemohon Mengajukan s/d Bendahara Menyerahkan Uang (Max 7 Hari / 1 Minggu)
+            $tglPengajuan = !empty($p->tgl_pengajuan) ? Carbon::parse($p->tgl_pengajuan) : Carbon::parse($p->created_at);
+            $tglSelesaiCair = !empty($p->tgl_cair) ? Carbon::parse($p->tgl_cair) : (in_array($p->status, ['Dicairkan', 'Selesai']) ? Carbon::parse($p->updated_at) : null);
+
+            $pencairanSlaStatus = 'Dalam Proses';
+            $durasiPencairanHari = 0;
+
+            if ($tglSelesaiCair) {
+                $durasiPencairanHari = (int) round($tglPengajuan->diffInDays($tglSelesaiCair));
+                if ($durasiPencairanHari <= 7) {
+                    $pencairanSlaStatus = 'Tepat Waktu';
+                    $pencairanTepatWaktuCount++;
+                } else {
+                    $pencairanSlaStatus = 'Terlambat';
+                    $pencairanTerlambatCount++;
+                }
+            } else {
+                $durasiPencairanHari = (int) round($tglPengajuan->diffInDays($now));
+                if ($durasiPencairanHari <= 7) {
+                    $pencairanSlaStatus = 'Dalam Proses';
+                    $pencairanDalamProsesCount++;
+                } else {
+                    $pencairanSlaStatus = 'Terlambat';
+                    $pencairanTerlambatCount++;
+                }
+            }
+
+            // B. Evaluasi SLA Upload SPM/SP2D oleh Verifikator (2 Hari)
             $spmSlaStatus = 'Belum Mulai';
             $isSpmDone = !empty($p->no_spm) || !empty($p->tgl_spm);
 
@@ -128,7 +174,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // B. Evaluasi SLA Upload SPJ Pemohon (5 Hari dari SPM Upload)
+            // C. Evaluasi SLA Upload SPJ Pemohon (5 Hari)
             $spjPemohonSlaStatus = 'Belum Mulai';
             $isSpjUploaded = in_array($p->spj_status, ['Menunggu Verifikasi SPJ', 'SPJ Lengkap']) || !empty($p->spj_file);
 
@@ -157,7 +203,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // C. Evaluasi SLA Verifikasi SPJ (2 Hari dari SPJ Upload)
+            // D. Evaluasi SLA Verifikasi SPJ (2 Hari)
             $spjVerifikatorSlaStatus = 'Belum Mulai';
             $isSpjVerified = ($p->spj_status == 'SPJ Lengkap');
 
@@ -186,8 +232,8 @@ class DashboardController extends Controller
                 }
             }
 
-            $isOverallTerlambat = ($spmSlaStatus == 'Terlambat' || $spjPemohonSlaStatus == 'Terlambat' || $spjVerifikatorSlaStatus == 'Terlambat');
-            $isOverallTepatWaktu = ($spmSlaStatus == 'Tepat Waktu' || $spjPemohonSlaStatus == 'Tepat Waktu' || $spjVerifikatorSlaStatus == 'Tepat Waktu') && !$isOverallTerlambat;
+            $isOverallTerlambat = ($pencairanSlaStatus == 'Terlambat' || $spmSlaStatus == 'Terlambat' || $spjPemohonSlaStatus == 'Terlambat' || $spjVerifikatorSlaStatus == 'Terlambat');
+            $isOverallTepatWaktu = ($pencairanSlaStatus == 'Tepat Waktu' || $spmSlaStatus == 'Tepat Waktu' || $spjPemohonSlaStatus == 'Tepat Waktu' || $spjVerifikatorSlaStatus == 'Tepat Waktu') && !$isOverallTerlambat;
 
             // Filter Ketepatan jika dipilih user
             if ($filterKetepatan == 'tepat_waktu' && !$isOverallTepatWaktu) {
@@ -197,11 +243,13 @@ class DashboardController extends Controller
                 continue;
             }
 
-            $isUptd = str_contains(strtoupper($p->bidang), 'UPTD') || str_contains(strtoupper($p->bidang), 'SATPEL');
+            $isUptd = str_contains(strtoupper($p->bidang), 'UPTD');
 
             $daftarSpmMonitoring[] = [
                 'pengajuan' => $p,
                 'is_uptd' => $isUptd,
+                'pencairan_sla_status' => $pencairanSlaStatus,
+                'durasi_pencairan_hari' => $durasiPencairanHari,
                 'spm_sla_status' => $spmSlaStatus,
                 'spj_pemohon_sla_status' => $spjPemohonSlaStatus,
                 'spj_verifikator_sla_status' => $spjVerifikatorSlaStatus,
@@ -211,20 +259,22 @@ class DashboardController extends Controller
         }
 
         // Hitung Skor SLA Keseluruhan (%)
-        $totalSlaEvaluated = ($spmTepatWaktuCount + $spmTerlambatCount) + ($spjPemohonTepatWaktuCount + $spjPemohonTerlambatCount) + ($spjVerifikasiTepatWaktuCount + $spjVerifikasiTerlambatCount);
-        $totalSlaPassed = $spmTepatWaktuCount + $spjPemohonTepatWaktuCount + $spjVerifikasiTepatWaktuCount;
+        $totalSlaEvaluated = ($pencairanTepatWaktuCount + $pencairanTerlambatCount) + ($spmTepatWaktuCount + $spmTerlambatCount) + ($spjPemohonTepatWaktuCount + $spjPemohonTerlambatCount) + ($spjVerifikasiTepatWaktuCount + $spjVerifikasiTerlambatCount);
+        $totalSlaPassed = $pencairanTepatWaktuCount + $spmTepatWaktuCount + $spjPemohonTepatWaktuCount + $spjVerifikasiTepatWaktuCount;
         $overallSlaScore = $totalSlaEvaluated > 0 ? round(($totalSlaPassed / $totalSlaEvaluated) * 100, 1) : 100;
 
         // =========================================================================
         // 6. METRIKS PERFORMA & KETERLIBATAN PIHAK YANG TERLIBAT (STAKEHOLDERS)
         // =========================================================================
+        // Untuk Operator Bidang, daftarBidang sudah difilter ke bidang sendiri saja,
+        // sehingga bidangPerformance juga otomatis hanya menampilkan bidangnya.
         $bidangPerformance = [];
         foreach ($daftarBidang as $bName) {
             $bQuery = (clone $query)->where('bidang', $bName);
             $totalB = $bQuery->count();
             if ($totalB == 0) continue;
 
-            $isUptd = str_contains(strtoupper($bName), 'UPTD') || str_contains(strtoupper($bName), 'SATPEL');
+            $isUptd = str_contains(strtoupper($bName), 'UPTD');
 
             $spjUploadedCount = (clone $bQuery)->whereIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])->count();
             $spjTerlambatCount = (clone $bQuery)->where(function($q) {
@@ -300,11 +350,20 @@ class DashboardController extends Controller
             $todoTitle = 'Daftar Tugas & Tindakan Operator Bidang / UPTD';
             $todoSubtitle = 'Daftar berkas yang memerlukan tindakan perbaikan, upload SPJ, atau pengajuan baru dari bidang Anda.';
 
+            $isUptdUser = $userBidang === 'UPTD' || str_contains(strtoupper($userBidang), 'UPTD');
+
             // 1. Dokumen Perlu Perbaikan (Revisi)
-            $revisiItems = PengajuanLs::where('bidang', $userBidang)
-                ->where('status', 'Perlu Perbaikan')
-                ->orderBy('updated_at', 'desc')
-                ->get();
+            if ($isUptdUser) {
+                $revisiItems = PengajuanLs::where('user_id', Auth::id())
+                    ->where('status', 'Perlu Perbaikan')
+                    ->orderBy('updated_at', 'desc')
+                    ->get();
+            } else {
+                $revisiItems = PengajuanLs::where('bidang', $userBidang)
+                    ->where('status', 'Perlu Perbaikan')
+                    ->orderBy('updated_at', 'desc')
+                    ->get();
+            }
             foreach ($revisiItems as $item) {
                 $todoItems[] = [
                     'type' => 'danger',
@@ -319,12 +378,41 @@ class DashboardController extends Controller
                 ];
             }
 
-            // 2. SPM Terbit - Tenggat Upload SPJ (5 Hari Kerja)
-            $pendingSpjItems = PengajuanLs::where('bidang', $userBidang)
-                ->whereNotNull('no_spm')
-                ->whereNotIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])
-                ->orderBy('spj_deadline', 'asc')
-                ->get();
+            // 2. SPP Menunggu Tanda Tangan UPTD
+            if ($isUptdUser) {
+                $sppTtdItems = PengajuanLs::where('user_id', Auth::id())
+                    ->where('status', 'SPP Menunggu TTD UPTD')
+                    ->orderBy('updated_at', 'desc')
+                    ->get();
+                foreach ($sppTtdItems as $item) {
+                    $todoItems[] = [
+                        'type' => 'warning',
+                        'icon' => 'bi-pen-fill',
+                        'title' => 'Tanda Tangani SPP: ' . $item->no_pengajuan,
+                        'desc' => 'Dokumen SPP (No. ' . ($item->no_spp ?? '-') . ') telah diterbitkan. Download, tanda tangani (tanpa cap basah), dan unggah kembali.',
+                        'date' => Carbon::parse($item->updated_at)->diffForHumans(),
+                        'badge' => '📄 Perlu TTD SPP',
+                        'badge_class' => 'bg-warning bg-opacity-25 text-dark border border-warning',
+                        'action_url' => route('pengajuan.show', $item->id),
+                        'action_label' => 'TTD & Upload SPP',
+                    ];
+                }
+            }
+
+            // 3. SPM Terbit - Tenggat Upload SPJ (5 Hari Kerja)
+            if ($isUptdUser) {
+                $pendingSpjItems = PengajuanLs::where('user_id', Auth::id())
+                    ->whereNotNull('no_spm')
+                    ->whereNotIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])
+                    ->orderBy('spj_deadline', 'asc')
+                    ->get();
+            } else {
+                $pendingSpjItems = PengajuanLs::where('bidang', $userBidang)
+                    ->whereNotNull('no_spm')
+                    ->whereNotIn('spj_status', ['Menunggu Verifikasi SPJ', 'SPJ Lengkap'])
+                    ->orderBy('spj_deadline', 'asc')
+                    ->get();
+            }
             foreach ($pendingSpjItems as $item) {
                 $deadline = !empty($item->spj_deadline) ? Carbon::parse($item->spj_deadline) : null;
                 $isOverdue = $deadline && Carbon::now()->gt($deadline);
@@ -409,8 +497,46 @@ class DashboardController extends Controller
             }
         } elseif ($userRole == 'Operator Pembayaran') {
             $todoTitle = 'Daftar Tugas Operator SAKTI / Pembayaran';
-            $todoSubtitle = 'Daftar pengajuan yang telah disetujui PPK dan siap diajukan ke aplikasi SAKTI.';
+            $todoSubtitle = 'Daftar pengajuan yang memerlukan penerbitan SPP dan proses SPM SAKTI.';
 
+            // 1. Antrean Penerbitan SPP
+            $sppItems = PengajuanLs::where('status', 'Penerbitan SPP')
+                ->orderBy('updated_at', 'asc')
+                ->get();
+            foreach ($sppItems as $item) {
+                $todoItems[] = [
+                    'type' => 'warning',
+                    'icon' => 'bi-file-earmark-text-fill',
+                    'title' => 'Penerbitan SPP: ' . $item->no_pengajuan,
+                    'desc' => 'Disetujui PPK. Terbitkan SPP untuk pengajuan: "' . \Illuminate\Support\Str::limit($item->nama_kegiatan, 40) . '"',
+                    'date' => Carbon::parse($item->updated_at)->diffForHumans(),
+                    'badge' => 'Penerbitan SPP',
+                    'badge_class' => 'bg-warning text-dark',
+                    'action_url' => route('pengajuan.show', $item->id),
+                    'action_label' => 'Terbitkan SPP',
+                ];
+            }
+
+            // 2. Antrean Validasi SPP Bertandatangan UPTD
+            $sppTtdItems = PengajuanLs::where('status', 'SPP Menunggu TTD UPTD')
+                ->whereNotNull('spp_signed_link')
+                ->orderBy('spp_signed_at', 'asc')
+                ->get();
+            foreach ($sppTtdItems as $item) {
+                $todoItems[] = [
+                    'type' => 'success',
+                    'icon' => 'bi-check2-circle',
+                    'title' => 'Validasi SPP TTD UPTD: ' . $item->no_pengajuan,
+                    'desc' => 'SPP ' . ($item->no_spp ?? '-') . ' sudah ditandatangani UPTD. Validasi dan lanjutkan ke proses SAKTI (SPM).',
+                    'date' => $item->spp_signed_at ? Carbon::parse($item->spp_signed_at)->diffForHumans() : 'Baru diunggah',
+                    'badge' => '✅ SPP Siap Validasi',
+                    'badge_class' => 'bg-success bg-opacity-15 text-success border border-success border-opacity-25',
+                    'action_url' => route('pengajuan.show', $item->id),
+                    'action_label' => 'Validasi & Lanjutkan ke SAKTI',
+                ];
+            }
+
+            // 3. Antrean Proses SAKTI/SPM (PPSPM)
             $saktiItems = PengajuanLs::where('status', 'Diajukan ke SAKTI')
                 ->orderBy('updated_at', 'asc')
                 ->get();
@@ -418,10 +544,10 @@ class DashboardController extends Controller
                 $todoItems[] = [
                     'type' => 'info',
                     'icon' => 'bi-send-check-fill',
-                    'title' => 'Proses SAKTI (SPM): ' . $item->no_pengajuan,
-                    'desc' => 'Telah disetujui PPK. Rekam nomor SPM dari SAKTI untuk pengajuan: "' . \Illuminate\Support\Str::limit($item->nama_kegiatan, 40) . '"',
+                    'title' => 'Proses SAKTI / SPM (PPSPM): ' . $item->no_pengajuan,
+                    'desc' => 'SPP diterbitkan (' . ($item->no_spp ?? '-') . '). Rekam nomor SPM dari SAKTI untuk pengajuan: "' . \Illuminate\Support\Str::limit($item->nama_kegiatan, 40) . '"',
                     'date' => Carbon::parse($item->updated_at)->diffForHumans(),
-                    'badge' => 'Proses SAKTI',
+                    'badge' => 'Proses SAKTI (PPSPM)',
                     'badge_class' => 'bg-info text-white',
                     'action_url' => route('pengajuan.show', $item->id),
                     'action_label' => 'Input No SPM SAKTI',
@@ -449,11 +575,98 @@ class DashboardController extends Controller
             }
         }
 
+        // 6. KALKULASI PETA KEMACETAN LAYANAN (BOTTLENECK HEATMAP)
+        $bottleneckStages = [
+            [
+                'key' => 'verifikasi_uptd',
+                'label' => 'Verifikasi UPTD',
+                'actor' => 'PIC UPTD',
+                'icon' => 'bi-building-check',
+                'statuses' => ['Menunggu Verifikasi UPTD'],
+            ],
+            [
+                'key' => 'verifikasi_keuangan',
+                'label' => 'Verifikasi Keuangan',
+                'actor' => 'Verifikator Keu',
+                'icon' => 'bi-shield-check',
+                'statuses' => ['Menunggu Verifikasi'],
+            ],
+            [
+                'key' => 'persetujuan_ppk',
+                'label' => 'Persetujuan PPK',
+                'actor' => 'PPK',
+                'icon' => 'bi-file-earmark-person',
+                'statuses' => ['Proses Persetujuan PPK'],
+            ],
+            [
+                'key' => 'proses_sakti',
+                'label' => 'Proses SAKTI / SPM',
+                'actor' => 'Op Pembayaran',
+                'icon' => 'bi-receipt',
+                'statuses' => ['Penerbitan SPP', 'SPP Menunggu TTD UPTD', 'Diajukan ke SAKTI'],
+            ],
+            [
+                'key' => 'pencairan_sp2d',
+                'label' => 'Pencairan SP2D',
+                'actor' => 'Bendahara',
+                'icon' => 'bi-wallet2',
+                'statuses' => ['Belum Terbit SP2D'],
+            ],
+        ];
+
+        $heatmapBottleneck = [];
+        $hasBottleneckAlert = false;
+        $bottleneckAlertMessage = '';
+
+        foreach ($bottleneckStages as $stg) {
+            $count = (clone $query)->whereIn('status', $stg['statuses'])->count();
+            
+            $oldestDoc = (clone $query)->whereIn('status', $stg['statuses'])->orderBy('updated_at', 'asc')->first();
+            $isOverdue = false;
+            $overdueDays = 0;
+            if ($oldestDoc && $oldestDoc->updated_at) {
+                $days = (int) round(Carbon::parse($oldestDoc->updated_at)->diffInDays(Carbon::now()));
+                if ($days >= 2) {
+                    $isOverdue = true;
+                    $overdueDays = $days;
+                }
+            }
+
+            $level = 'success';
+            $statusText = '🟢 Lancar';
+            if ($count > 5 || $isOverdue) {
+                $level = 'danger';
+                $statusText = '🔴 Macet / Bottleneck';
+                if (!$hasBottleneckAlert) {
+                    $hasBottleneckAlert = true;
+                    $bottleneckAlertMessage = '🚨 Perhatian: Terdeteksi hambatan di meja ' . $stg['label'] . ' (' . $count . ' berkas pending' . ($isOverdue ? ', terlama ' . $overdueDays . ' hari' : '') . ').';
+                }
+            } elseif ($count >= 3) {
+                $level = 'warning';
+                $statusText = '🟡 Perhatian';
+            }
+
+            $heatmapBottleneck[] = [
+                'key' => $stg['key'],
+                'label' => $stg['label'],
+                'actor' => $stg['actor'],
+                'icon' => $stg['icon'],
+                'count' => $count,
+                'level' => $level,
+                'status_text' => $statusText,
+                'is_overdue' => $isOverdue,
+                'overdue_days' => $overdueDays,
+            ];
+        }
+
         return view('dashboard', compact(
             'totalPengajuan',
+            'draftCount',
             'menungguVerifikasi',
             'perluPerbaikan',
             'prosesPersetujuanPpk',
+            'penerbitanSpp',
+            'sppMenungguTtd',
             'diajukanSakti',
             'menungguSp2d',
             'dicairkan',
@@ -478,7 +691,10 @@ class DashboardController extends Controller
             'stakeholderMetrics',
             'todoItems',
             'todoTitle',
-            'todoSubtitle'
+            'todoSubtitle',
+            'heatmapBottleneck',
+            'hasBottleneckAlert',
+            'bottleneckAlertMessage'
         ));
     }
 

@@ -487,23 +487,11 @@
             <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-coin text-success"></i> Panel Konfirmasi Pencairan & Nomor SP2D</h5>
                 
-                <!-- UNGGAH FILE PDF SP2D UNTUK EXTRAKSI OTOMATIS -->
-                <div class="mb-4 p-3 bg-white border rounded-3 shadow-sm">
-                    <label class="form-label fw-bold small text-primary mb-1">
-                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Unggah Dokumen PDF SP2D (Pembacaan Otomatis)
-                    </label>
-                    <input type="file" id="sp2d_pdf_input_gas" accept=".pdf" class="form-control form-control-sm">
-                    <div class="form-text text-muted small mt-1">
-                        Pilih file PDF SP2D resmi dari SAKTI/KPPN. Sistem akan mengekstrak <strong>Nomor SP2D</strong> dan <strong>Tanggal Cair</strong> secara otomatis.
-                    </div>
-                    <div id="sp2d_parse_status_gas" class="mt-2 small fw-semibold"></div>
-                </div>
-
                 <form id="formSp2d" onsubmit="execRealisasiSp2d(event)">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Nomor SP2D (SAKTI)</label>
-                            <input type="text" id="no_sp2d" class="form-control" placeholder="Masukkan atau upload PDF untuk isi otomatis..." required>
+                            <input type="text" id="no_sp2d" class="form-control" placeholder="Contoh: 24053000123" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label small fw-semibold text-secondary">Tanggal Pembayaran / Cair</label>

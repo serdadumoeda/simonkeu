@@ -37,10 +37,17 @@
             </div>
         </div>
 
-        <!-- Filter Form -->
-        <form method="GET" class="row g-3 mb-4 bg-light p-3 rounded border border-light-subtle shadow-sm mx-0">
+        <!-- Filter & Search Form -->
+        <form method="GET" class="row g-2 g-md-3 mb-4 bg-light p-3 rounded-3 border border-light-subtle shadow-sm mx-0 align-items-end">
             <div class="col-md-3">
-                <label class="form-label small fw-semibold text-secondary">Tahun Anggaran</label>
+                <label class="form-label small fw-semibold text-secondary mb-1"><i class="bi bi-search me-1"></i>Cari Kata Kunci</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white border-0 shadow-sm text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" value="{{ request('search') }}" class="form-control border-0 shadow-sm" placeholder="No Pengajuan, Kegiatan, SPM, SP2D, SPP...">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Tahun Anggaran</label>
                 <select name="tahun" class="form-select form-select-sm border-0 shadow-sm fw-semibold text-primary">
                     @foreach($daftarTahun as $t)
                         <option value="{{ $t }}" {{ ($tahunAktif ?? date('Y')) == $t ? 'selected' : '' }}>
@@ -50,8 +57,8 @@
                     <option value="semua" {{ ($tahunAktif ?? '') == 'semua' ? 'selected' : '' }}>-- Semua Tahun --</option>
                 </select>
             </div>
-            <div class="col-md-4">
-                <label class="form-label small fw-semibold text-secondary">Filter Bidang</label>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Filter Bidang</label>
                 <select name="bidang" class="form-select form-select-sm border-0 shadow-sm">
                     <option value="">-- Semua Bidang --</option>
                     @foreach($daftarBidang as $b)
@@ -59,19 +66,24 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label small fw-semibold text-secondary">Filter Status</label>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Filter Status</label>
                 <select name="status" class="form-select form-select-sm border-0 shadow-sm">
                     <option value="">-- Semua Status --</option>
-                    @foreach(['Draft', 'Menunggu Verifikasi', 'Perlu Perbaikan', 'Proses Persetujuan PPK', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'] as $s)
+                    @foreach(['Draft', 'Menunggu Verifikasi', 'Perlu Perbaikan', 'Proses Persetujuan PPK', 'Penerbitan SPP', 'SPP Menunggu TTD UPTD', 'Diajukan ke SAKTI', 'Belum Terbit SP2D', 'Dicairkan', 'Selesai'] as $s)
                         <option value="{{ $s }}" {{ request('status') == $s ? 'selected' : '' }}>{{ $s }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-dark btn-sm w-100 rounded-pill shadow-sm">
-                    <i class="bi bi-funnel"></i> Saring Data
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-dark btn-sm flex-grow-1 rounded-pill shadow-sm">
+                    <i class="bi bi-funnel"></i> Saring
                 </button>
+                @if(request()->hasAny(['search', 'bidang', 'status']) || (request('tahun') && request('tahun') !== date('Y')))
+                    <a href="{{ route('pengajuan.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill shadow-sm" title="Reset Filter">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                @endif
             </div>
         </form>
 
@@ -121,18 +133,21 @@
                                     </div>
                                     <span class="small text-muted fw-semibold" style="font-size: 10px;">{{ $progressPct }}%</span>
                                 </div>
-                                <!-- Status Badge di bawah progress bar -->
                                 <div>
                                     @if($p->status == 'Draft')
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-pencil-square"></i> Draft</span>
-                                    @elseif($p->status == 'Menunggu Verifikasi')
-                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-clock"></i> Verifikasi Keuangan</span>
-                                    @elseif($p->status == 'Perlu Perbaikan')
-                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-exclamation-octagon"></i> Perlu Perbaikan</span>
-                                    @elseif($p->status == 'Proses Persetujuan PPK')
-                                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-person-check"></i> Proses Persetujuan PPK</span>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-pencil-square"></i> Draft</span>
+                                @elseif($p->status == 'Menunggu Verifikasi')
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-clock"></i> Verifikasi Keuangan</span>
+                                @elseif($p->status == 'Perlu Perbaikan')
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-exclamation-octagon"></i> Perlu Perbaikan</span>
+                                @elseif($p->status == 'Proses Persetujuan PPK')
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-person-check"></i> Proses Persetujuan PPK</span>
+                                @elseif($p->status == 'Penerbitan SPP')
+                                    <span class="badge bg-purple bg-opacity-10 text-purple border border-purple border-opacity-50 px-2 py-1 rounded-pill" style="color: #6f42c1; background-color: rgba(111, 66, 193, 0.1); border-color: rgba(111, 66, 193, 0.5);"><i class="bi bi-file-earmark-text"></i> Penerbitan SPP</span>
+                                @elseif($p->status == 'SPP Menunggu TTD UPTD')
+                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-pen"></i> TTD UPTD (SPP)</span>
                                     @elseif($p->status == 'Diajukan ke SAKTI')
-                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-send-check"></i> Proses SAKTI</span>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-send-check"></i> SAKTI/SPM (PPSPM)</span>
                                     @elseif($p->status == 'Belum Terbit SP2D')
                                         <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-50 px-2 py-1 rounded-pill"><i class="bi bi-hourglass-split"></i> Menunggu SP2D</span>
                                     @elseif($p->status == 'Dicairkan')
@@ -233,9 +248,14 @@
             </table>
         </div>
 
-        <!-- Pagination Links -->
-        <div class="mt-4 d-flex justify-content-center">
-            {{ $daftarPengajuan->appends(request()->query())->links() }}
+        <!-- Pagination Links & Total Counter -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 pt-2 gap-2">
+            <div class="small text-muted">
+                Menampilkan <strong>{{ $daftarPengajuan->firstItem() ?? 0 }}</strong> - <strong>{{ $daftarPengajuan->lastItem() ?? 0 }}</strong> dari <strong>{{ $daftarPengajuan->total() }}</strong> pengajuan
+            </div>
+            <div>
+                {{ $daftarPengajuan->appends(request()->query())->links() }}
+            </div>
         </div>
     </div>
 @endsection

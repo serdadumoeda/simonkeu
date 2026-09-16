@@ -253,7 +253,7 @@ var PengajuanService = {
 
     var noPengajuan = data.no_pengajuan || Utils.generateNoPengajuan();
     var userBidang = user.bidang ? user.bidang.toString() : '';
-    var isUptd = userBidang.toUpperCase().indexOf('UPTD') > -1 || userBidang.toUpperCase().indexOf('SATPEL') > -1;
+    var isUptd = userBidang.toUpperCase().indexOf('UPTD') > -1;
     var statusAwal = data.action === 'draft' ? 'Draft' : (isUptd ? 'Menunggu Verifikasi UPTD' : 'Menunggu Verifikasi');
 
     var db = getDb();

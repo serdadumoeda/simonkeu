@@ -238,15 +238,15 @@
                     <label class="form-label small fw-semibold text-secondary">Link Utama Google Drive SPJ <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-google"></i></span>
-                        <input type="url" name="link_google_drive" class="form-control border-0 shadow-sm" placeholder="https://drive.google.com/..." value="{{ old('link_google_drive') }}" required>
+                        <input type="url" name="link_google_drive" class="form-control border-0 shadow-sm gdrive-input" placeholder="https://drive.google.com/..." value="{{ old('link_google_drive') }}" oninput="validateGDriveUrl(this)" required>
                     </div>
                 </div>
 
                 <div class="col-md-6 mb-2">
-                    <label class="form-label small fw-semibold text-secondary">Link Bukti Penyerahan (Opsional)</label>
+                    <label class="form-label small fw-semibold text-secondary">Link Bukti Penyerahan (Wajib) <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-file-earmark-arrow-up"></i></span>
-                        <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm" placeholder="https://drive.google.com/..." value="{{ old('bukti_penyerahan') }}">
+                        <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm gdrive-input" placeholder="https://drive.google.com/..." value="{{ old('bukti_penyerahan') }}" oninput="validateGDriveUrl(this)" required>
                     </div>
                 </div>
 
@@ -254,7 +254,7 @@
                 <div class="col-md-12">
                     <div class="card border-primary border-opacity-25 p-3 bg-light bg-opacity-50 shadow-sm">
                         <h6 class="fw-bold text-primary mb-2">
-                            <i class="bi bi-file-earmark-check-fill me-1"></i> Berkas Data Dukung Dokumen
+                            <i class="bi bi-file-earmark-check-fill me-1"></i> Berkas Data Dukung Dokumen (Wajib)
                         </h6>
                         <p class="text-muted small mb-3">
                             Pilih Kategori Pengajuan di atas terlebih dahulu untuk menampilkan daftar berkas data dukung. Masukkan link Google Drive untuk masing-masing dokumen.
@@ -335,11 +335,11 @@
                 html += `
                     <div class="col-md-6 mb-2">
                         <label class="form-label small fw-semibold text-dark mb-1">
-                            <i class="bi bi-file-earmark-text me-1"></i> ${docName}
+                            <i class="bi bi-file-earmark-text me-1"></i> ${docName} <span class="text-danger">*</span>
                         </label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white"><i class="bi bi-link-45deg"></i></span>
-                            <input type="url" name="data_dukung[${docName}]" class="form-control" placeholder="Tautan Drive ${docName}">
+                            <input type="url" name="data_dukung[${docName}]" class="form-control gdrive-input" placeholder="Tautan Drive ${docName}" oninput="validateGDriveUrl(this)" required>
                         </div>
                     </div>
                 `;
@@ -349,11 +349,47 @@
             container.innerHTML = html;
         }
 
+        function validateGDriveUrl(inputElem) {
+            if (!inputElem) return;
+            const val = (inputElem.value || '').trim();
+            let feedbackElem = inputElem.parentNode.nextElementSibling;
+            
+            if (!feedbackElem || !feedbackElem.classList.contains('gdrive-feedback')) {
+                feedbackElem = document.createElement('div');
+                feedbackElem.className = 'gdrive-feedback form-text fw-semibold small mt-1';
+                inputElem.parentNode.parentNode.insertBefore(feedbackElem, inputElem.parentNode.nextSibling);
+            }
+            
+            if (!val) {
+                feedbackElem.innerHTML = '';
+                return;
+            }
+            
+            const isDriveDomain = /https?:\/\/(drive|docs)\.google\.com\//i.test(val);
+            
+            if (!isDriveDomain) {
+                feedbackElem.className = 'gdrive-feedback form-text text-danger fw-semibold small mt-1';
+                feedbackElem.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i> Format URL harus diawali dengan https://drive.google.com/ atau https://docs.google.com/';
+                return;
+            }
+            
+            const hasSharing = val.includes('usp=sharing') || val.includes('usp=drivesdk') || val.includes('/drive/folders/') || val.includes('/file/d/');
+            
+            if (hasSharing) {
+                feedbackElem.className = 'gdrive-feedback form-text text-success fw-semibold small mt-1';
+                feedbackElem.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Link Google Drive terdeteksi valid. Pastikan izin akses diatur ke "Siapa saja yang memiliki link".';
+            } else {
+                feedbackElem.className = 'gdrive-feedback form-text text-warning fw-semibold small mt-1';
+                feedbackElem.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Format link valid. Disarankan menggunakan link bagikan (share link) Google Drive.';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             hitungNeto();
             if (document.getElementById('select_kategori').value) {
                 renderDataDukungFields();
             }
+            document.querySelectorAll('.gdrive-input').forEach(el => validateGDriveUrl(el));
         });
     </script>
 @endsection

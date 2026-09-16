@@ -9,15 +9,39 @@ use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         // Hanya Admin yang boleh masuk
         if (Auth::user()->role != 'Admin Keuangan') {
             abort(403, 'Akses Ditolak');
         }
 
-        $users = User::orderBy('created_at', 'desc')->get();
-        return view('users.index', compact('users'));
+        $query = User::query()->orderBy('created_at', 'desc');
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('no_wa', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('role')) {
+            $query->where('role', $request->role);
+        }
+
+        if ($request->filled('bidang')) {
+            $query->where('bidang', $request->bidang);
+        }
+
+        // Ambil daftar role & bidang unik untuk dropdown filter
+        $daftarRole = User::distinct()->pluck('role')->filter()->sort()->values();
+        $daftarBidang = User::distinct()->pluck('bidang')->filter()->sort()->values();
+
+        $users = $query->paginate(10)->withQueryString();
+
+        return view('users.index', compact('users', 'daftarRole', 'daftarBidang'));
     }
 
     public function store(Request $request)

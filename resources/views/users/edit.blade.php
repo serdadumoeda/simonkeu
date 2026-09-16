@@ -62,7 +62,7 @@
                             <option value="PPK" {{ old('role', $user->role) == 'PPK' ? 'selected' : '' }}>PPK (Pejabat Pembuat Komitmen)</option>
                             <option value="Operator Pembayaran" {{ old('role', $user->role) == 'Operator Pembayaran' ? 'selected' : '' }}>Operator Pembayaran (SPM)</option>
                             <option value="Bendahara" {{ old('role', $user->role) == 'Bendahara' ? 'selected' : '' }}>Bendahara (SP2D / Pencairan)</option>
-                            <option value="Kepala Balai" {{ old('role', $user->role) == 'Kepala Balai' ? 'selected' : '' }}>Kepala Balai (Executive / Pimpinan)</option>
+                            <option value="Kepala Balai" {{ old('role', $user->role) == 'Kepala Balai' ? 'selected' : '' }}>Kepala Balai (Pimpinan)</option>
                             <option value="Admin Keuangan" {{ old('role', $user->role) == 'Admin Keuangan' ? 'selected' : '' }}>Admin Keuangan (Superadmin)</option>
                         </select>
                     </div>

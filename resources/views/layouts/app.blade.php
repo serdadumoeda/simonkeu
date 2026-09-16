@@ -7,6 +7,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title') - simonKeu BPVP Surakarta</title>
     
+    <!-- Favicon / Logo Title Bar Icon -->
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+    
     <!-- Google Fonts & Bootstrap CDN -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -695,6 +700,16 @@
                 @endif
                 @yield('content')
             </main>
+
+            <!-- Footer -->
+            <footer class="footer py-3 px-4 border-top bg-white text-muted small d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+                <div>
+                    <strong>simonKeu</strong> &copy; {{ date('Y') }} BPVP Surakarta
+                </div>
+                <div class="text-secondary" style="font-size: 11px;">
+                    Kementerian Ketenagakerjaan Republik Indonesia
+                </div>
+            </footer>
         </div>
     </div>
 

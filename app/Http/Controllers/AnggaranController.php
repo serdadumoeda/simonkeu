@@ -7,28 +7,34 @@ use Illuminate\Support\Facades\Auth;
 
 class AnggaranController extends Controller
 {
-    // Menampilkan halaman PDF Anggaran
+    // Menampilkan halaman Tautan Anggaran DIPA
     public function index()
     {
-        return view('anggaran.index');
-    }
-
-    // Proses Admin mengunggah/update PDF
-    public function upload(Request $request)
-    {
-        // Pastikan hanya Admin yang bisa upload
-        if (Auth::user()->role != 'Admin Keuangan') {
-            abort(403, 'Hanya Admin Keuangan yang dapat mengupdate anggaran.');
+        $linkFilePath = storage_path('app/anggaran_link.txt');
+        $linkAnggaran = null;
+        if (file_exists($linkFilePath)) {
+            $linkAnggaran = trim(file_get_contents($linkFilePath));
         }
 
-        // Validasi file harus PDF
+        return view('anggaran.index', compact('linkAnggaran'));
+    }
+
+    // Proses Admin mengunggah/update Tautan Google Drive Anggaran DIPA
+    public function upload(Request $request)
+    {
+        // Pastikan hanya Admin yang bisa upload/update
+        if (Auth::user()->role != 'Admin Keuangan') {
+            abort(403, 'Hanya Admin Keuangan yang dapat mengupdate tautan anggaran.');
+        }
+
+        // Validasi tautan Google Drive
         $request->validate([
-            'file_anggaran' => 'required|mimes:pdf|max:5000' // maksimal 5MB
+            'link_anggaran' => 'required|url'
         ]);
 
-        // Simpan file ke folder public/uploads dengan nama tetap agar menimpa file lama
-        $request->file('file_anggaran')->move(public_path('uploads'), 'anggaran_terbaru.pdf');
+        $linkFilePath = storage_path('app/anggaran_link.txt');
+        file_put_contents($linkFilePath, $request->link_anggaran);
 
-        return back()->with('success', 'Dokumen PDF Anggaran berhasil diperbarui!');
+        return back()->with('success', 'Tautan Link Google Drive PDF Anggaran DIPA berhasil diperbarui!');
     }
 }

@@ -380,6 +380,7 @@ class UserManagementAndSecurityTest extends TestCase
         $response = $this->post(route('pengajuan.realisasi', $pengajuan->id), [
             'no_sp2d' => 'SP2D-2606',
             'tgl_cair' => date('Y-m-d'),
+            'spj_sp2d_link' => 'https://drive.google.com/file/d/sp2d-test/view',
         ]);
         $response->assertRedirect(route('pengajuan.index'));
 
@@ -658,11 +659,12 @@ class UserManagementAndSecurityTest extends TestCase
             'kategori_pengajuan' => 'LS Kontrak',
         ]);
 
-        // Verifikator Keuangan uploads SPM/SP2D
+        // Verifikator Keuangan uploads SPM/SP2D/SPP
         $this->actingAs($verifikator);
         $response = $this->post(route('pengajuan.uploadSpjVerifikator', $pengajuan->id), [
             'spj_sp2d_link' => 'https://drive.google.com/file/d/sp2d/view',
             'spj_spm_link' => 'https://drive.google.com/file/d/spm/view',
+            'spj_spp_link' => 'https://drive.google.com/file/d/spp/view',
         ]);
 
         $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
@@ -780,7 +782,7 @@ class UserManagementAndSecurityTest extends TestCase
         // 1. Can access Executive Dashboard
         $response = $this->get(route('dashboard'));
         $response->assertStatus(200);
-        $response->assertSee('Dashboard Executive Kepala Balai');
+        $response->assertSee('Dashboard Kepala Balai');
         $response->assertSee('Skor Kepatuhan SLA');
 
         // 2. Can view all pengajuan in index
@@ -792,5 +794,266 @@ class UserManagementAndSecurityTest extends TestCase
         $response = $this->get(route('pengajuan.show', $pengajuan->id));
         $response->assertStatus(200);
         $response->assertSee('Pelatihan Executive Monitoring Test');
+    }
+
+    /**
+     * Test UPTD SPP multi-step flow: PPK approval -> LINA issues SPP link -> UPTD uploads signed SPP -> LINA validates -> SAKTI.
+     */
+    public function test_uptd_spp_multistep_flow(): void
+    {
+        $ppk = User::create([
+            'name' => 'PPK_User',
+            'email' => 'ppk@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'PPK',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $lina = User::create([
+            'name' => 'Lina_Operator_Pembayaran',
+            'email' => 'lina@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Pembayaran',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $uptdUser = User::create([
+            'name' => 'Operator_UPTD_Kendal',
+            'email' => 'uptd.kendal@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'UPTD Kendal',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-UPTD-SPP-001',
+            'tgl_pengajuan' => now(),
+            'user_id' => $uptdUser->id,
+            'bidang' => 'UPTD Kendal',
+            'nama_kegiatan' => 'Kegiatan SPP UPTD Kendal',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 5000000,
+            'nilai_neto' => 4500000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Proses Persetujuan PPK',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+
+        // Step 1: PPK Approves UPTD Pengajuan -> Status becomes 'Penerbitan SPP'
+        $this->actingAs($ppk);
+        $response = $this->post(route('pengajuan.ppkApproval', $pengajuan->id), [
+            'action' => 'setuju',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+        $pengajuan->refresh();
+        $this->assertEquals('Penerbitan SPP', $pengajuan->status);
+
+        // Step 2: Lina (Operator Pembayaran) issues SPP link -> Status becomes 'SPP Menunggu TTD UPTD'
+        $this->actingAs($lina);
+        $response = $this->post(route('pengajuan.penerbitanSpp', $pengajuan->id), [
+            'no_spp' => 'SPP-001/2026',
+            'tgl_spp' => date('Y-m-d'),
+            'spp_link' => 'https://drive.google.com/spp-original-link',
+        ]);
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+        $pengajuan->refresh();
+        $this->assertEquals('SPP Menunggu TTD UPTD', $pengajuan->status);
+        $this->assertEquals('https://drive.google.com/spp-original-link', $pengajuan->spp_link);
+
+        // Step 3: UPTD User uploads signed SPP link -> Status remains 'SPP Menunggu TTD UPTD' but spp_signed_link is populated
+        $this->actingAs($uptdUser);
+        $response = $this->post(route('pengajuan.uploadSppUptd', $pengajuan->id), [
+            'spp_signed_link' => 'https://drive.google.com/spp-signed-by-uptd',
+        ]);
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+        $pengajuan->refresh();
+        $this->assertEquals('SPP Menunggu TTD UPTD', $pengajuan->status);
+        $this->assertEquals('https://drive.google.com/spp-signed-by-uptd', $pengajuan->spp_signed_link);
+
+        // Step 4: Lina validates signed SPP -> Status becomes 'Diajukan ke SAKTI'
+        $this->actingAs($lina);
+        $response = $this->post(route('pengajuan.validasiSppUptd', $pengajuan->id));
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+        $pengajuan->refresh();
+        $this->assertEquals('Diajukan ke SAKTI', $pengajuan->status);
+    }
+
+    /**
+     * Test Satpel (Pusat) goes directly to SAKTI upon PPK approval (skips multi-step SPP).
+     */
+    public function test_satpel_goes_directly_to_sakti_on_ppk_approval(): void
+    {
+        $ppk = User::create([
+            'name' => 'PPK_User_2',
+            'email' => 'ppk2@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'PPK',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $satpelUser = User::create([
+            'name' => 'Operator_SATPEL_Batam',
+            'email' => 'satpel.batam@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'SATPEL Batam',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-SATPEL-001',
+            'tgl_pengajuan' => now(),
+            'user_id' => $satpelUser->id,
+            'bidang' => 'SATPEL Batam',
+            'nama_kegiatan' => 'Kegiatan SATPEL Batam',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 5000000,
+            'nilai_neto' => 4500000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Proses Persetujuan PPK',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+
+        // PPK Approves Satpel (Pusat) Pengajuan -> Status becomes 'Diajukan ke SAKTI' directly (skips SPP multi-tahap)
+        $this->actingAs($ppk);
+        $response = $this->post(route('pengajuan.ppkApproval', $pengajuan->id), [
+            'action' => 'setuju',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+        $pengajuan->refresh();
+        $this->assertEquals('Diajukan ke SAKTI', $pengajuan->status);
+    }
+
+    /**
+     * Test comments and rejection validation across all stages + histori_catatan_json audit trail.
+     */
+    public function test_stage_comments_and_rejection_validation(): void
+    {
+        $verifikator = User::create([
+            'name' => 'Verifikator_Catatan_Test',
+            'email' => 'verif.catatan@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Verifikator Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $pemohon = User::create([
+            'name' => 'Pemohon_Catatan_Test',
+            'email' => 'pemohon.catatan@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        $pengajuan = PengajuanLs::create([
+            'no_pengajuan' => 'KU-CATATAN-001',
+            'tgl_pengajuan' => now(),
+            'user_id' => $pemohon->id,
+            'bidang' => 'Penyelenggara',
+            'nama_kegiatan' => 'Kegiatan Catatan Test',
+            'no_akun' => '521211',
+            'jenis_belanja' => 'Honorarium',
+            'nilai_bruto' => 1000000,
+            'nilai_neto' => 900000,
+            'link_google_drive' => 'https://drive.google.com/test',
+            'status' => 'Menunggu Verifikasi',
+            'kategori_pengajuan' => 'GU/UP/TUP',
+        ]);
+
+        // 1. Verifikasi Keuangan without required comment on rejection should fail
+        $this->actingAs($verifikator);
+        $response = $this->post(route('pengajuan.verifikasi', $pengajuan->id), [
+            'action' => 'perbaiki',
+            'catatan_koreksi' => '',
+        ]);
+        $response->assertSessionHas('error');
+
+        // 2. Verifikasi Keuangan with comment on approval records history
+        $response = $this->post(route('pengajuan.verifikasi', $pengajuan->id), [
+            'action' => 'setuju',
+            'catatan' => 'Berkas lengkap dan verified.',
+        ]);
+        $response->assertRedirect(route('pengajuan.index'));
+        $pengajuan->refresh();
+        $this->assertEquals('Proses Persetujuan PPK', $pengajuan->status);
+        $this->assertNotEmpty($pengajuan->histori_catatan_json);
+        $this->assertEquals('Verifikasi Keuangan', $pengajuan->histori_catatan_json[0]['tahap']);
+        $this->assertEquals('Disetujui', $pengajuan->histori_catatan_json[0]['action']);
+        $this->assertEquals('Berkas lengkap dan verified.', $pengajuan->histori_catatan_json[0]['catatan']);
+
+        // 3. Test SPJ Verification with comment
+        $pengajuan->status = 'Selesai';
+        $pengajuan->spj_status = 'Menunggu Verifikasi SPJ';
+        $pengajuan->save();
+
+        // Rejection without comment should fail
+        $response = $this->post(route('pengajuan.verifikasiSpj', $pengajuan->id), [
+            'action' => 'perbaiki',
+            'catatan_spj' => '',
+        ]);
+        $response->assertSessionHas('error');
+
+        // Approval with comment should succeed & store catatan_spj
+        $response = $this->post(route('pengajuan.verifikasiSpj', $pengajuan->id), [
+            'action' => 'setuju',
+            'catatan_spj' => 'Kuitansi & SPJ Lengkap 100%',
+        ]);
+        $response->assertRedirect(route('pengajuan.show', $pengajuan->id));
+        $pengajuan->refresh();
+        $this->assertEquals('SPJ Lengkap', $pengajuan->spj_status);
+        $this->assertEquals('Kuitansi & SPJ Lengkap 100%', $pengajuan->catatan_spj);
+    }
+
+    /**
+     * Test admin can search and filter users with pagination.
+     */
+    public function test_admin_can_search_and_filter_users_with_pagination(): void
+    {
+        $admin = User::create([
+            'name' => 'Siti_Admin',
+            'email' => 'admin@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Admin Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        User::create([
+            'name' => 'Lina Payment',
+            'email' => 'lina@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Pembayaran',
+            'bidang' => 'Keuangan',
+            'no_wa' => '08123456789',
+        ]);
+
+        User::create([
+            'name' => 'Doni UPTD Banda Aceh',
+            'email' => 'doni@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Pemohon UPTD',
+            'bidang' => 'BPVP Banda Aceh',
+            'no_wa' => '08987654321',
+        ]);
+
+        $this->actingAs($admin);
+
+        // Search test
+        $response = $this->get(route('users.index', ['search' => 'Lina']));
+        $response->assertStatus(200);
+        $response->assertSee('Lina Payment');
+        $response->assertDontSee('Doni UPTD Banda Aceh');
+
+        // Role filter test
+        $response = $this->get(route('users.index', ['role' => 'Pemohon UPTD']));
+        $response->assertStatus(200);
+        $response->assertSee('Doni UPTD Banda Aceh');
+        $response->assertDontSee('Lina Payment');
+
+        // Bidang filter test
+        $response = $this->get(route('users.index', ['bidang' => 'BPVP Banda Aceh']));
+        $response->assertStatus(200);
+        $response->assertSee('Doni UPTD Banda Aceh');
+        $response->assertDontSee('Lina Payment');
     }
 }

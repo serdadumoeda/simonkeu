@@ -38,20 +38,69 @@
             border-radius: 12px;
             flex-shrink: 0;
         }
-        .sla-guide-pill {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 8px 16px;
-            border-radius: 50rem;
-            display: inline-flex;
-            align-items: center;
+        .sla-guide-container {
+            display: flex;
+            gap: 10px;
             flex-wrap: wrap;
-            gap: 14px;
         }
-        .sla-guide-item {
-            display: inline-flex;
+        .sla-guide-card {
+            display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 10px 16px;
+            transition: all 0.25s ease;
+            min-width: 180px;
+        }
+        .sla-guide-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .sla-guide-card.sla-tepat {
+            border-left: 4px solid #10b981;
+            background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
+        }
+        .sla-guide-card.sla-proses {
+            border-left: 4px solid #f59e0b;
+            background: linear-gradient(135deg, #fffbeb 0%, #f8fafc 100%);
+        }
+        .sla-guide-card.sla-terlambat {
+            border-left: 4px solid #ef4444;
+            background: linear-gradient(135deg, #fef2f2 0%, #f8fafc 100%);
+        }
+        .sla-guide-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .sla-guide-icon.icon-tepat {
+            background: rgba(16, 185, 129, 0.15);
+            color: #059669;
+        }
+        .sla-guide-icon.icon-proses {
+            background: rgba(245, 158, 11, 0.15);
+            color: #d97706;
+        }
+        .sla-guide-icon.icon-terlambat {
+            background: rgba(239, 68, 68, 0.15);
+            color: #dc2626;
+        }
+        .sla-guide-label {
+            font-weight: 700;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+        .sla-guide-desc {
+            font-size: 10.5px;
+            color: #64748b;
+            line-height: 1.3;
         }
     </style>
 
@@ -63,16 +112,11 @@
                     <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
                         <h4 class="fw-bold text-white mb-0">
                             @if(Auth::user()->role == 'Kepala Balai')
-                                <i class="bi bi-award-fill text-warning me-2"></i>Dashboard Executive Kepala Balai
+                                <i class="bi bi-award-fill text-warning me-2"></i>Dashboard Kepala Balai
                             @else
-                                <i class="bi bi-speedometer2 text-warning me-2"></i>Dashboard Executive Monitoring Keuangan
+                                <i class="bi bi-speedometer2 text-warning me-2"></i>Dashboard Monitoring Keuangan
                             @endif
                         </h4>
-                        @if(Auth::user()->role == 'Kepala Balai')
-                            <span class="badge bg-warning text-dark px-3 py-1 rounded-pill small fw-bold">
-                                Executive View
-                            </span>
-                        @endif
                     </div>
                     <p class="text-white-50 small mb-3" style="font-size: 12.5px; max-width: 580px;">
                         Pemantauan Ketepatan Waktu Layanan (SLA) Penerbitan SPM, Penatausahaan SPJ, & Performa Stakeholders / UPTD
@@ -82,13 +126,27 @@
                     <div class="d-inline-flex align-items-center gap-3 px-3 py-2 rounded-pill" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);">
                         <span class="text-white-50 small fw-medium" style="font-size: 11.5px;">
                             Skor Kepatuhan SLA Keseluruhan:
-                            <i class="bi bi-info-circle text-warning ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Indeks standar waktu layanan gabungan: SPM Keuangan (2hr), SPJ Pemohon (5hr), & Verifikasi SPJ (2hr)"></i>
+                            <i class="bi bi-info-circle text-warning ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Indeks standar waktu layanan gabungan: SLA Pencairan Keuangan (Max 7 Hari / 1 Minggu dari Pemohon s/d Bendahara Cair), SPM Keuangan (2hr), SPJ Pemohon (5hr), & Verifikasi SPJ (2hr)"></i>
                         </span>
-                        <span class="fs-5 fw-extrabold text-warning me-1">{{ $overallSlaScore }}%</span>
+                        <span class="fs-5 fw-extrabold @if($overallSlaScore >= 90) text-success @elseif($overallSlaScore >= 75) text-info @elseif($overallSlaScore >= 60) text-warning @else text-danger @endif me-1">{{ $overallSlaScore }}%</span>
                         <div class="vr bg-white bg-opacity-25" style="height: 16px;"></div>
-                        <span class="badge bg-success text-white rounded-pill px-2.5 py-1 small fw-bold" style="font-size: 10.5px;">
-                            <i class="bi bi-shield-check me-1"></i> Sangat Baik (On Track)
-                        </span>
+                        @if($overallSlaScore >= 90)
+                            <span class="badge bg-success text-white rounded-pill px-2.5 py-1 small fw-bold" style="font-size: 10.5px;">
+                                <i class="bi bi-shield-check me-1"></i> Sangat Baik (On Track)
+                            </span>
+                        @elseif($overallSlaScore >= 75)
+                            <span class="badge bg-primary text-white rounded-pill px-2.5 py-1 small fw-bold" style="font-size: 10.5px;">
+                                <i class="bi bi-check-circle me-1"></i> Baik (Memuaskan)
+                            </span>
+                        @elseif($overallSlaScore >= 60)
+                            <span class="badge bg-warning text-dark rounded-pill px-2.5 py-1 small fw-bold" style="font-size: 10.5px;">
+                                <i class="bi bi-exclamation-circle me-1"></i> Cukup (Perlu Ditingkatkan)
+                            </span>
+                        @else
+                            <span class="badge bg-danger text-white rounded-pill px-2.5 py-1 small fw-bold" style="font-size: 10.5px;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Perlu Perhatian (Kritis)
+                            </span>
+                        @endif
                     </div>
                 </div>
 
@@ -108,14 +166,15 @@
                             </select>
                         </div>
 
-                        <!-- Filter Bidang / UPTD -->
+                        <!-- Filter Bidang / UPTD (tersembunyi untuk Operator Bidang karena sudah auto-filter) -->
+                        @if(Auth::user()->role != 'Operator Bidang')
                         <div class="input-group input-group-sm shadow-sm rounded-pill border-0 bg-white bg-opacity-10 overflow-hidden" style="min-width: 190px; flex: 1 1 auto; max-width: 240px; backdrop-filter: blur(4px);" title="Pilih Unit Kerja / UPTD">
                             <span class="input-group-text bg-transparent text-white-50 border-0 px-2 fw-bold small"><i class="bi bi-building"></i></span>
                             <select name="bidang" class="form-select form-select-sm border-0 bg-transparent fw-bold text-white px-2 text-truncate dark-select" onchange="this.form.submit()">
                                 <option value="">Semua Bidang & UPTD</option>
                                 @foreach($daftarBidang as $b)
                                     @php
-                                        $isUptdOption = str_contains(strtoupper($b), 'UPTD') || str_contains(strtoupper($b), 'SATPEL');
+                                        $isUptdOption = str_contains(strtoupper($b), 'UPTD');
                                     @endphp
                                     <option value="{{ $b }}" {{ ($filterBidang ?? '') == $b ? 'selected' : '' }}>
                                         {{ $isUptdOption ? '🏢 UPTD: ' : '🏛️ ' }}{{ $b }}
@@ -123,6 +182,7 @@
                                 @endforeach
                             </select>
                         </div>
+                        @endif
 
                         <!-- Filter Status SLA -->
                         <div class="input-group input-group-sm shadow-sm rounded-pill border-0 bg-white bg-opacity-10 overflow-hidden" style="width: 145px; flex: 0 0 auto; backdrop-filter: blur(4px);" title="Filter Ketepatan Waktu">
@@ -142,6 +202,67 @@
             </div>
         </div>
     </div>
+
+    <!-- 1.4 PETA KEMACETAN LAYANAN (BOTTLENECK HEATMAP WIDGET) -->
+    @if(isset($heatmapBottleneck) && count($heatmapBottleneck) > 0)
+        <div class="card card-custom border-0 shadow-sm mb-4 bg-white" style="border-radius: 18px; border-left: 5px solid {{ $hasBottleneckAlert ? '#dc3545' : '#0d6efd' }} !important;">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="fw-bold text-dark mb-0">
+                                🔥 Peta Kemacetan Layanan <span class="text-muted fw-normal fs-6">(Bottleneck Heatmap)</span>
+                            </h5>
+                            @if($hasBottleneckAlert)
+                                <span class="badge bg-danger text-white rounded-pill px-2.5 py-1 small animate__animated animate__pulse animate__infinite">
+                                    <i class="bi bi-exclamation-octagon-fill me-1"></i> Hambatan Terdeteksi
+                                </span>
+                            @else
+                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2.5 py-1 small fw-bold">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Layanan Lancar
+                                </span>
+                            @endif
+                        </div>
+                        <p class="text-muted small mb-0" style="font-size: 12px;">Pemantauan beban antrean dokumen pending di setiap meja kerja (workflow stages)</p>
+                    </div>
+
+                    @if($hasBottleneckAlert && !empty($bottleneckAlertMessage))
+                        <div class="alert alert-danger mb-0 py-1.5 px-3 rounded-pill small fw-semibold">
+                            {{ $bottleneckAlertMessage }}
+                        </div>
+                    @endif
+                </div>
+
+                <div class="row g-3">
+                    @foreach($heatmapBottleneck as $stg)
+                        <div class="col-md-4 col-lg-2">
+                            <div class="p-3 rounded-4 border shadow-sm h-100 position-relative bg-light bg-opacity-50 border-{{ $stg['level'] == 'danger' ? 'danger' : ($stg['level'] == 'warning' ? 'warning' : 'light-subtle') }}" style="border-top: 4px solid {{ $stg['level'] == 'danger' ? '#dc3545' : ($stg['level'] == 'warning' ? '#ffc107' : '#198754') }} !important;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-{{ $stg['level'] == 'danger' ? 'danger' : ($stg['level'] == 'warning' ? 'warning text-dark' : 'success') }} rounded-pill px-2 py-0.5 small fw-bold" style="font-size: 10px;">
+                                        {{ $stg['status_text'] }}
+                                    </span>
+                                    <i class="bi {{ $stg['icon'] }} fs-5 text-{{ $stg['level'] == 'danger' ? 'danger' : ($stg['level'] == 'warning' ? 'warning' : 'primary') }}"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-0" style="font-size: 12.5px;">{{ $stg['label'] }}</h6>
+                                <span class="text-muted extra-small d-block mb-2" style="font-size: 10.5px;">PJ: {{ $stg['actor'] }}</span>
+                                <div class="d-flex align-items-baseline justify-content-between">
+                                    <span class="fs-4 fw-extrabold text-{{ $stg['level'] == 'danger' ? 'danger' : ($stg['level'] == 'warning' ? 'dark' : 'success') }}">
+                                        {{ $stg['count'] }}
+                                    </span>
+                                    <span class="text-muted small" style="font-size: 11px;">berkas</span>
+                                </div>
+                                @if($stg['is_overdue'])
+                                    <div class="mt-1 pt-1 border-top border-light-subtle text-danger small fw-semibold" style="font-size: 10px;">
+                                        ⚠️ Terlama: {{ $stg['overdue_days'] }} hari
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
 
     <!-- 1.5 ROLE-BASED TO-DO LIST (ACTION INBOX FOR NON-EXECUTIVE ROLES) -->
     @if(Auth::user()->role != 'Kepala Balai' && Auth::user()->role != 'Superadmin' && !empty($todoTitle))
@@ -189,7 +310,7 @@
                             <div class="col-md-6 col-lg-4 {{ $isHidden ? 'extra-todo-card d-none' : '' }}">
                                 <div class="card border border-light-subtle shadow-sm h-100 p-3 rounded-4 kpi-card" style="background: #ffffff; border-radius: 14px;">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <span class="badge {{ $todo['badge_class'] }} px-2.5 py-1 rounded-pill small fw-bold" style="font-size: 10.5px;">
+                                        <span class="badge {{ $todo['badge_class'] }} px-2 py-1 rounded-pill small fw-bold" style="font-size: 10.5px;">
                                             {{ $todo['badge'] }}
                                         </span>
                                         <span class="text-muted small" style="font-size: 11px;">
@@ -197,7 +318,7 @@
                                         </span>
                                     </div>
                                     <h6 class="fw-bold text-dark mb-1" style="font-size: 13.5px;">
-                                        <i class="bi {{ $todo['icon'] }} text-{{ $todo['type'] }} me-1.5"></i> {{ $todo['title'] }}
+                                        <i class="bi {{ $todo['icon'] }} text-{{ $todo['type'] }} me-1"></i> {{ $todo['title'] }}
                                     </h6>
                                     <p class="text-secondary small mb-3 flex-grow-1" style="font-size: 12px; line-height: 1.4;">
                                         {{ $todo['desc'] }}
@@ -435,72 +556,95 @@
         <span class="text-muted small" style="font-size: 11.5px;"><i class="bi bi-arrow-right me-1"></i>Alur Berkas dari Pengajuan hingga Pencairan Selesai</span>
     </div>
 
-    <div class="row text-center mb-4 g-3">
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-warning border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-warning bg-opacity-10 text-dark mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 1</span>
-                <div class="text-warning mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-hourglass-top"></i>
+    <div class="mb-4 overflow-x-auto pb-1" style="scrollbar-width: thin;">
+        <div class="text-center d-grid gap-2" style="grid-template-columns: repeat(8, minmax(0, 1fr)); min-width: 820px;">
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-secondary border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Draft</span>
+                    <div class="text-secondary mb-2" style="font-size: 22px;">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-secondary mb-1" style="font-weight: 800;">{{ $draftCount }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Draft Pemohon</span>
                 </div>
-                <h4 class="fw-extrabold text-warning mb-1" style="font-weight: 800;">{{ $menungguVerifikasi }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Menunggu Verifikasi</span>
             </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-danger border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-danger bg-opacity-10 text-danger mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Revisi</span>
-                <div class="text-danger mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-x-octagon"></i>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-warning border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-warning bg-opacity-10 text-dark mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 1</span>
+                    <div class="text-warning mb-2" style="font-size: 22px;">
+                        <i class="bi bi-hourglass-top"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-warning mb-1" style="font-weight: 800;">{{ $menungguVerifikasi }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Menunggu Verif</span>
                 </div>
-                <h4 class="fw-extrabold text-danger mb-1" style="font-weight: 800;">{{ $perluPerbaikan }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Perlu Perbaikan</span>
             </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-info border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-info bg-opacity-10 text-info mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 2</span>
-                <div class="text-info mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-person-check"></i>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-danger border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-danger bg-opacity-10 text-danger mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Revisi</span>
+                    <div class="text-danger mb-2" style="font-size: 22px;">
+                        <i class="bi bi-x-octagon"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-danger mb-1" style="font-weight: 800;">{{ $perluPerbaikan }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Perlu Perbaikan</span>
                 </div>
-                <h4 class="fw-extrabold text-info mb-1" style="font-weight: 800;">{{ $prosesPersetujuanPpk }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Proses PPK</span>
             </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-primary border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-primary bg-opacity-10 text-primary mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 3</span>
-                <div class="text-primary mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-send-check"></i>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-info border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-info bg-opacity-10 text-info mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 2</span>
+                    <div class="text-info mb-2" style="font-size: 22px;">
+                        <i class="bi bi-person-check"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-info mb-1" style="font-weight: 800;">{{ $prosesPersetujuanPpk }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Proses PPK</span>
                 </div>
-                <h4 class="fw-extrabold text-primary mb-1" style="font-weight: 800;">{{ $diajukanSakti }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Proses SAKTI (SPM)</span>
             </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-dark border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-dark bg-opacity-10 text-dark mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 4</span>
-                <div class="text-dark mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-hourglass-split"></i>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-purple border-4 shadow-sm kpi-card" style="border-radius: 14px; border-top-color: #6f42c1 !important;">
+                    <span class="badge bg-purple bg-opacity-10 text-purple mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content; color: #6f42c1; background: rgba(111, 66, 193, 0.1);">Tahap 3</span>
+                    <div class="mb-2" style="font-size: 22px; color: #6f42c1;">
+                        <i class="bi bi-file-earmark-text"></i>
+                    </div>
+                    <h4 class="fw-extrabold mb-1" style="font-weight: 800; color: #6f42c1;">{{ $penerbitanSpp + $sppMenungguTtd }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Terbit SPP</span>
                 </div>
-                <h4 class="fw-extrabold text-dark mb-1" style="font-weight: 800;">{{ $menungguSp2d }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Menunggu SP2D</span>
             </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card card-custom bg-white p-3.5 h-100 border-0 border-top border-success border-4 shadow-sm kpi-card" style="border-radius: 14px;">
-                <span class="badge bg-success bg-opacity-10 text-success mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Selesai</span>
-                <div class="text-success mb-1.5" style="font-size: 22px;">
-                    <i class="bi bi-check-circle-fill"></i>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-primary border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-primary bg-opacity-10 text-primary mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 4</span>
+                    <div class="text-primary mb-2" style="font-size: 22px;">
+                        <i class="bi bi-send-check"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-primary mb-1" style="font-weight: 800;">{{ $diajukanSakti }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">SAKTI/SPM</span>
                 </div>
-                <h4 class="fw-extrabold mb-1 text-success" style="font-weight: 800;">{{ $dicairkan }}</h4>
-                <span class="small fw-semibold text-secondary" style="font-size: 11.5px;">Sudah Cair (Selesai)</span>
+            </div>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-dark border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-dark bg-opacity-10 text-dark mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Tahap 5</span>
+                    <div class="text-dark mb-2" style="font-size: 22px;">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <h4 class="fw-extrabold text-dark mb-1" style="font-weight: 800;">{{ $menungguSp2d }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Menunggu SP2D</span>
+                </div>
+            </div>
+            <div>
+                <div class="card card-custom bg-white p-3 h-100 border-0 border-top border-success border-4 shadow-sm kpi-card" style="border-radius: 14px;">
+                    <span class="badge bg-success bg-opacity-10 text-success mx-auto mb-2 rounded-pill fw-bold" style="font-size: 9.5px; width: fit-content;">Selesai</span>
+                    <div class="text-success mb-2" style="font-size: 22px;">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h4 class="fw-extrabold mb-1 text-success" style="font-weight: 800;">{{ $dicairkan }}</h4>
+                    <span class="small fw-semibold text-secondary text-truncate d-block" style="font-size: 11px;">Cair & Verified</span>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- 4. PERFORMA STAKEHOLDER & KETEPATAN SPJ PER BIDANG/UPTD -->
     <div class="row mb-4 g-4">
-        <!-- Pihak Utama (Role Level Overview) -->
+        <!-- Pihak Utama (Role Level Overview) — Hanya tampil untuk role non-Operator Bidang -->
+        @if(Auth::user()->role != 'Operator Bidang')
         <div class="col-lg-5">
             <div class="card card-custom shadow-sm border-0 p-4 bg-white h-100" style="border-radius: 18px;">
                 <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
@@ -538,15 +682,15 @@
                         </div>
                     </div>
 
-                    <!-- Operator Pembayaran (SAKTI) -->
+                    <!-- Operator Pembayaran (SPP & SPM) -->
                     <div class="list-group-item px-0 py-3 border-bottom">
                         <div class="d-flex justify-content-between align-items-center mb-1.5">
-                            <span class="fw-bold text-dark small"><i class="bi bi-send-check-fill text-info me-2"></i> Operator Pembayaran (SAKTI)</span>
+                            <span class="fw-bold text-dark small"><i class="bi bi-send-check-fill text-info me-2"></i> Operator Pembayaran (SPP & SPM)</span>
                             <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2.5 py-1 rounded-pill small" style="font-size: 10px;">{{ $stakeholderMetrics['operator_pembayaran']['total_user'] }} Akun</span>
                         </div>
                         <div class="d-flex justify-content-between small text-muted ms-4" style="font-size: 11.5px;">
-                            <span>Total SPM Diterbitkan: <strong class="text-info">{{ $stakeholderMetrics['operator_pembayaran']['spm_issued_total'] }}</strong></span>
-                            <span>Integrasi SAKTI: <strong class="text-success">Terhubung</strong></span>
+                            <span>SPP & SPM Diterbitkan: <strong class="text-info">{{ $stakeholderMetrics['operator_pembayaran']['spm_issued_total'] }}</strong></span>
+                            <span>Role: <strong class="text-success">Operator Pembayaran</strong></span>
                         </div>
                     </div>
 
@@ -565,8 +709,10 @@
             </div>
         </div>
 
+        @endif
+
         <!-- Ketepatan SPJ Pemohon Per Bidang & UPTD -->
-        <div class="col-lg-7">
+        <div class="{{ Auth::user()->role == 'Operator Bidang' ? 'col-lg-12' : 'col-lg-7' }}">
             <div class="card card-custom shadow-sm border-0 p-4 bg-white h-100" style="border-radius: 18px;">
                 <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                     <div class="d-flex align-items-center">
@@ -644,26 +790,49 @@
                 <span class="text-muted small" style="font-size: 11.5px;">Menampilkan {{ count($daftarSpmMonitoring) }} dokumen terpantau di sistem</span>
             </div>
 
-            <!-- Integrated SLA Legend Pill Box with Spacing -->
-            <div class="sla-guide-pill text-muted small" style="font-size: 11.5px;">
-                <span class="fw-bold text-dark me-1"><i class="bi bi-info-circle-fill text-primary me-1"></i> Panduan Status SLA:</span>
-                <div class="sla-guide-item">
-                    <span class="badge bg-success text-white rounded-pill px-2.5 py-1">🟢 Tepat Waktu</span>
-                    <span class="text-secondary ms-1">Selesai ≤ Batas SLA</span>
+            <!-- Integrated SLA Legend Cards & Live Search Input -->
+            <div class="d-flex flex-column gap-3 mt-2 w-100">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                    <span class="fw-bold text-dark" style="font-size: 13px;"><i class="bi bi-info-circle-fill text-primary me-1"></i> Panduan Status SLA</span>
+                    <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 320px;">
+                        <span class="input-group-text bg-white border-0 text-muted px-3"><i class="bi bi-search"></i></span>
+                        <input type="text" id="dashboard_spm_search" class="form-control border-0 px-2" placeholder="Cari cepat di tabel pemantauan SPM..." onkeyup="filterDashboardSpmTable()">
+                    </div>
                 </div>
-                <div class="sla-guide-item ms-2">
-                    <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">🟡 Dalam Proses</span>
-                    <span class="text-secondary ms-1">Berjalan ≤ Batas SLA</span>
-                </div>
-                <div class="sla-guide-item ms-2">
-                    <span class="badge bg-danger text-white rounded-pill px-2.5 py-1">🔴 Terlambat</span>
-                    <span class="text-secondary ms-1">Melebihi Batas Waktu SLA</span>
+                <div class="sla-guide-container">
+                    <div class="sla-guide-card sla-tepat">
+                        <div class="sla-guide-icon icon-tepat">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                        <div>
+                            <div class="sla-guide-label text-success">🟢 Tepat Waktu</div>
+                            <div class="sla-guide-desc">Selesai ≤ Batas SLA</div>
+                        </div>
+                    </div>
+                    <div class="sla-guide-card sla-proses">
+                        <div class="sla-guide-icon icon-proses">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <div>
+                            <div class="sla-guide-label" style="color: #b45309;">🟡 Dalam Proses</div>
+                            <div class="sla-guide-desc">Berjalan ≤ Batas SLA</div>
+                        </div>
+                    </div>
+                    <div class="sla-guide-card sla-terlambat">
+                        <div class="sla-guide-icon icon-terlambat">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                        <div>
+                            <div class="sla-guide-label text-danger">🔴 Terlambat</div>
+                            <div class="sla-guide-desc">Melebihi Batas Waktu SLA</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 12.5px;">
+            <table class="table table-hover align-middle mb-0" id="spm_monitoring_table" style="font-size: 12.5px;">
                 <thead class="table-dark rounded-top" style="background-color: #0f172a;">
                     <tr>
                         <th class="ps-3 py-3">No Pengajuan</th>
@@ -671,6 +840,7 @@
                         <th class="py-3">Nama Kegiatan</th>
                         <th class="py-3">Nilai Neto</th>
                         <th class="py-3">No SPM dan Status</th>
+                        <th class="text-center py-3" title="SLA Utama: Pemohon mengajukan s/d Bendahara menyerahkan uang / SP2D cair (Max 7 Hari / 1 Minggu)">SLA Pencairan (7hr) <i class="bi bi-info-circle text-warning ms-1"></i></th>
                         <th class="text-center py-3" title="Batas waktu Verifikator Keuangan upload SPM (Max 2 Hari Kerja)">Upload SPM (2hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>
                         <th class="text-center py-3" title="Batas waktu Pemohon / UPTD upload berkas SPJ (Max 5 Hari Kerja)">SPJ Pemohon (5hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>
                         <th class="text-center py-3" title="Batas waktu Verifikator Keuangan verifikasi SPJ (Max 2 Hari Kerja)">Verif SPJ (2hr) <i class="bi bi-info-circle text-white-50 ms-1"></i></th>
@@ -708,6 +878,17 @@
                                     <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1 rounded-pill small fw-semibold">
                                         🟡 Menunggu Upload
                                     </span>
+                                @endif
+                            </td>
+
+                            <!-- SLA Utama Pencairan Keuangan (Max 7 Hari / 1 Minggu Pemohon -> Bendahara Cair) -->
+                            <td class="text-center py-3">
+                                @if($item['pencairan_sla_status'] == 'Tepat Waktu')
+                                    <span class="badge bg-success text-white px-2.5 py-1 rounded-pill" title="Pencairan selesai <= 7 hari (1 minggu)" style="font-size: 10.5px;"><i class="bi bi-check-circle-fill"></i> 🟢 Tepat ({{ round($item['durasi_pencairan_hari']) }}hr)</span>
+                                @elseif($item['pencairan_sla_status'] == 'Terlambat')
+                                    <span class="badge bg-danger text-white px-2.5 py-1 rounded-pill" title="Pencairan melebihi batas 7 hari (1 minggu)" style="font-size: 10.5px;"><i class="bi bi-exclamation-triangle-fill"></i> 🔴 Terlambat ({{ round($item['durasi_pencairan_hari']) }}hr)</span>
+                                @else
+                                    <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-50 px-2.5 py-1 rounded-pill" title="Proses pencairan berjalan dalam batas 7 hari (1 minggu)" style="font-size: 10.5px;"><i class="bi bi-clock-history"></i> 🟡 Proses ({{ round($item['durasi_pencairan_hari']) }}hr)</span>
                                 @endif
                             </td>
 
@@ -777,15 +958,25 @@
         </div>
     </div>
 
-    <!-- 6. GRAFIK SEBARAN VOLUME PENGAJUAN -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card card-custom shadow-sm border-0 p-4 bg-white" style="border-radius: 18px;">
-                <h6 class="fw-bold text-dark text-center mb-3">
-                    <i class="bi bi-bar-chart-line text-primary me-2"></i>Sebaran Volume Pengajuan per Bidang Kerja & UPTD
+    <!-- 6. GRAFIK SEBARAN VOLUME & DISTRIBUSI STATUS -->
+    <div class="row mb-4 g-4">
+        <div class="col-lg-8">
+            <div class="card card-custom shadow-sm border-0 p-4 bg-white h-100" style="border-radius: 18px;">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-bar-chart-line text-primary me-2"></i>Sebaran Volume Pengajuan per Bidang Kerja & Satpel
                 </h6>
                 <div style="position: relative; max-height: 280px;">
-                    <canvas id="grafikBidang" height="75"></canvas>
+                    <canvas id="grafikBidang" height="110"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card card-custom shadow-sm border-0 p-4 bg-white h-100" style="border-radius: 18px;">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-pie-chart text-info me-2"></i>Distribusi Status Tahapan Berkas
+                </h6>
+                <div style="position: relative; max-height: 280px;" class="d-flex justify-content-center">
+                    <canvas id="grafikStatus" height="200"></canvas>
                 </div>
             </div>
         </div>
@@ -797,6 +988,29 @@
             const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
             const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
         });
+
+        // Client-side live search filter for Dashboard SPM Monitoring Table
+        function filterDashboardSpmTable() {
+            const input = document.getElementById('dashboard_spm_search');
+            if (!input) return;
+            const filter = input.value.toLowerCase();
+            const table = document.getElementById('spm_monitoring_table');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            const rows = tbody.getElementsByTagName('tr');
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.getElementsByTagName('td').length <= 1) continue; // Skip empty state row
+                const textContent = row.textContent || row.innerText;
+                if (textContent.toLowerCase().indexOf(filter) > -1) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
 
         const labelBidang = {!! json_encode($labelBidang) !!};
         const angkaBidang = {!! json_encode($angkaBidang) !!};
@@ -841,6 +1055,50 @@
                     y: {
                         beginAtZero: true,
                         ticks: { stepSize: 1 }
+                    }
+                }
+            }
+        });
+
+        // Grafik Doughnut Distribusi Status
+        const ctxStatus = document.getElementById('grafikStatus').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Draft', 'Menunggu Verif', 'Perlu Perbaikan', 'Proses PPK', 'Terbit SPP', 'SAKTI/SPM', 'Menunggu SP2D', 'Cair & Verified'],
+                datasets: [{
+                    data: [
+                        {{ $draftCount }},
+                        {{ $menungguVerifikasi }},
+                        {{ $perluPerbaikan }},
+                        {{ $prosesPersetujuanPpk }},
+                        {{ $penerbitanSpp + $sppMenungguTtd }},
+                        {{ $diajukanSakti }},
+                        {{ $menungguSp2d }},
+                        {{ $dicairkan }}
+                    ],
+                    backgroundColor: [
+                        '#6c757d',
+                        '#ffc107',
+                        '#dc3545',
+                        '#0dcaf0',
+                        '#6f42c1',
+                        '#0d6efd',
+                        '#212529',
+                        '#198754'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
                     }
                 }
             }

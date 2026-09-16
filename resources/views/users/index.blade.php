@@ -85,7 +85,7 @@
                             <option value="PPK" {{ old('role') == 'PPK' ? 'selected' : '' }}>PPK (Pejabat Pembuat Komitmen)</option>
                             <option value="Operator Pembayaran" {{ old('role') == 'Operator Pembayaran' ? 'selected' : '' }}>Operator Pembayaran (SPM)</option>
                             <option value="Bendahara" {{ old('role') == 'Bendahara' ? 'selected' : '' }}>Bendahara (SP2D / Pencairan)</option>
-                            <option value="Kepala Balai" {{ old('role') == 'Kepala Balai' ? 'selected' : '' }}>Kepala Balai (Executive / Pimpinan)</option>
+                            <option value="Kepala Balai" {{ old('role') == 'Kepala Balai' ? 'selected' : '' }}>Kepala Balai (Pimpinan)</option>
                             <option value="Admin Keuangan" {{ old('role') == 'Admin Keuangan' ? 'selected' : '' }}>Admin Keuangan (Superadmin)</option>
                         </select>
                     </div>
@@ -128,10 +128,46 @@
                         </div>
                         <div>
                             <h5 class="fw-bold text-dark mb-0">Daftar Pengguna Sistem</h5>
-                            <span class="text-muted small" style="font-size: 11px;">Total {{ count($users) }} akun terdaftar</span>
+                            <span class="text-muted small" style="font-size: 11px;">Total {{ $users->total() }} akun terdaftar</span>
                         </div>
                     </div>
                 </div>
+
+                <!-- Form Search & Filter Users -->
+                <form method="GET" action="{{ route('users.index') }}" class="row g-2 mb-3 bg-light p-3 rounded-3 border border-light-subtle align-items-center">
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-0 shadow-sm text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" name="search" value="{{ request('search') }}" class="form-control border-0 shadow-sm" placeholder="Cari nama, email, WA...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="role" class="form-select form-select-sm border-0 shadow-sm">
+                            <option value="">-- Semua Role --</option>
+                            @foreach($daftarRole as $r)
+                                <option value="{{ $r }}" {{ request('role') == $r ? 'selected' : '' }}>{{ $r }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="bidang" class="form-select form-select-sm border-0 shadow-sm">
+                            <option value="">-- Semua Bidang --</option>
+                            @foreach($daftarBidang as $b)
+                                <option value="{{ $b }}" {{ request('bidang') == $b ? 'selected' : '' }}>{{ $b }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex gap-1">
+                        <button type="submit" class="btn btn-dark btn-sm w-100 rounded-circle" title="Cari / Saring">
+                            <i class="bi bi-funnel"></i>
+                        </button>
+                        @if(request()->hasAny(['search', 'role', 'bidang']))
+                            <a href="{{ route('users.index') }}" class="btn btn-outline-secondary btn-sm rounded-circle" title="Reset Filter">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </a>
+                        @endif
+                    </div>
+                </form>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -144,7 +180,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($users as $u)
+                            @forelse($users as $u)
                                 @php
                                     $roleColor = match($u->role) {
                                         'Admin Keuangan' => 'bg-purple text-white',
@@ -214,9 +250,26 @@
                                         </div>
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        <i class="bi bi-person-x fs-3 d-block mb-1 opacity-50"></i>
+                                        Tidak ada akun pengguna yang sesuai kriteria pencarian.
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination Links & Total Counter -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 pt-2 gap-2">
+                    <div class="small text-muted">
+                        Menampilkan <strong>{{ $users->firstItem() ?? 0 }}</strong> - <strong>{{ $users->lastItem() ?? 0 }}</strong> dari <strong>{{ $users->total() }}</strong> pengguna
+                    </div>
+                    <div>
+                        {{ $users->links() }}
+                    </div>
                 </div>
             </div>
         </div>

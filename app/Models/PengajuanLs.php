@@ -49,8 +49,45 @@ class PengajuanLs extends Model
         'spj_deadline',
         'verifikator_spm_deadline',
         'spj_verifikator_deadline',
-        'spj_status'
+        'spj_status',
+        'no_spp',
+        'tgl_spp',
+        'spp_operator_id',
+        'spp_link',
+        'spp_signed_link',
+        'spp_signed_at',
+        'catatan_spj',
+        'histori_catatan_json'
     ];
+
+    protected $casts = [
+        'histori_catatan_json' => 'array',
+    ];
+
+    /**
+     * Helper to append a decision log & comment entry to histori_catatan_json.
+     */
+    public function addHistoriCatatan(string $tahap, string $action, ?string $catatan, $user = null): void
+    {
+        $history = $this->histori_catatan_json ?? [];
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        $userName = $user ? ($user->name ?? $user->email) : (auth()->user()->name ?? 'System');
+        $userRole = $user ? ($user->role ?? '-') : (auth()->user()->role ?? '-');
+
+        $history[] = [
+            'tahap' => $tahap,
+            'action' => $action,
+            'catatan' => $catatan ?: '-',
+            'user_name' => $userName,
+            'user_role' => $userRole,
+            'created_at' => now()->format('Y-m-d H:i:s'),
+        ];
+
+        $this->histori_catatan_json = $history;
+    }
 
     // Relasi ke tabel User
     public function user()
@@ -77,6 +114,10 @@ class PengajuanLs extends Model
     {
         return $this->belongsTo(User::class, 'bendahara_id');
     }
+    public function sppOperator()
+    {
+        return $this->belongsTo(User::class, 'spp_operator_id');
+    }
     public function spjVerifiedBy()
     {
         return $this->belongsTo(User::class, 'spj_verified_by');
@@ -91,9 +132,11 @@ class PengajuanLs extends Model
         if ($this->status == 'Menunggu Verifikasi') return 20;
         if ($this->status == 'Perlu Perbaikan') return 20;
         if ($this->status == 'Proses Persetujuan PPK') return 35;
+        if ($this->status == 'Penerbitan SPP') return 42;
+        if ($this->status == 'SPP Menunggu TTD UPTD') return 45;
         if ($this->status == 'Diajukan ke SAKTI') return 50;
-        if ($this->status == 'Belum Terbit SP2D') return 65;
-        if ($this->status == 'Dicairkan') return 75;
+        if ($this->status == 'Belum Terbit SP2D') return 60;
+        if ($this->status == 'Dicairkan') return 70;
         if ($this->status == 'Selesai') {
             $spj = $this->spj_status ?? 'Belum Upload';
             if ($spj == 'SPJ Lengkap') return 100;
@@ -113,7 +156,9 @@ class PengajuanLs extends Model
         if ($this->status == 'Menunggu Verifikasi') return 'Verifikasi Keuangan';
         if ($this->status == 'Perlu Perbaikan') return 'Perlu Perbaikan';
         if ($this->status == 'Proses Persetujuan PPK') return 'Proses Persetujuan PPK';
-        if ($this->status == 'Diajukan ke SAKTI') return 'Proses SAKTI (SPM)';
+        if ($this->status == 'Penerbitan SPP') return 'Penerbitan SPP';
+        if ($this->status == 'SPP Menunggu TTD UPTD') return 'Menunggu TTD UPTD';
+        if ($this->status == 'Diajukan ke SAKTI') return 'Proses SAKTI / SPM (PPSPM)';
         if ($this->status == 'Belum Terbit SP2D') return 'Menunggu SP2D';
         if ($this->status == 'Dicairkan') return 'Sudah Cair';
         if ($this->status == 'Selesai') {
@@ -135,6 +180,8 @@ class PengajuanLs extends Model
         if ($this->status == 'Menunggu Verifikasi') return 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-50';
         if ($this->status == 'Perlu Perbaikan') return 'bg-danger bg-opacity-10 text-danger border border-danger border-opacity-50';
         if ($this->status == 'Proses Persetujuan PPK') return 'bg-info bg-opacity-10 text-info border border-info border-opacity-50';
+        if ($this->status == 'Penerbitan SPP') return 'bg-primary bg-opacity-15 text-primary border border-primary border-opacity-50';
+        if ($this->status == 'SPP Menunggu TTD UPTD') return 'bg-warning bg-opacity-15 text-dark border border-warning border-opacity-50';
         if ($this->status == 'Diajukan ke SAKTI') return 'bg-primary bg-opacity-10 text-primary border border-primary border-opacity-50';
         if ($this->status == 'Belum Terbit SP2D') return 'bg-dark bg-opacity-10 text-dark border border-dark border-opacity-50';
         if ($this->status == 'Dicairkan') return 'bg-success bg-opacity-10 text-success border border-success border-opacity-50';
@@ -157,6 +204,8 @@ class PengajuanLs extends Model
         if ($pct >= 100) return 'bg-success';
         if ($pct >= 80) return 'bg-primary';
         if ($pct >= 50) return 'bg-primary';
+        if ($pct >= 45) return 'bg-info';
+        if ($pct >= 42) return 'bg-info';
         if ($pct >= 35) return 'bg-info';
         if ($this->status == 'Perlu Perbaikan') return 'bg-danger';
         return 'bg-warning';
