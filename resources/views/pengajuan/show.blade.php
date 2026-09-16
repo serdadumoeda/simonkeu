@@ -1098,9 +1098,9 @@
             <div class="card card-custom border-success border-top border-4 p-4 bg-light mb-4 shadow-sm">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold text-dark mb-0"><i class="bi bi-cash-stack text-success"></i> Panel Penyerahan Uang & Bukti Pembayaran</h5>
-                    <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold" onclick="printBuktiPenyerahanVoucher()">
+                    <a href="{{ route('pengajuan.cetak_bukti', $pengajuan->id) }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold">
                         <i class="bi bi-printer-fill me-1"></i> Cetak Bukti Penyerahan Uang
-                    </button>
+                    </a>
                 </div>
 
                 @if(Auth::user()->role == 'Bendahara' && $pengajuan->status == 'Dicairkan')
@@ -1504,90 +1504,7 @@
         }
 
         function printBuktiPenyerahanVoucher() {
-            const printWin = window.open('', '_blank', 'width=800,height=900');
-            const content = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Bukti Penyerahan Uang - {{ $pengajuan->no_pengajuan }}</title>
-                    <style>
-                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; font-size: 13px; color: #222; }
-                        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px; }
-                        .header h2 { margin: 0; font-size: 18px; text-transform: uppercase; }
-                        .header p { margin: 3px 0 0 0; font-size: 12px; color: #555; }
-                        .title-box { text-align: center; margin-bottom: 20px; text-decoration: underline; font-weight: bold; font-size: 15px; }
-                        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-                        .table th, .table td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
-                        .table th { background: #f4f4f4; width: 30%; }
-                        .sig-table { width: 100%; text-align: center; margin-top: 50px; }
-                        .sig-table td { width: 50%; vertical-align: top; }
-                        .sig-space { height: 70px; }
-                        .btn-print { background: #0d6efd; color: #fff; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 20px; margin-bottom: 20px; }
-                        @media print { .no-print { display: none; } }
-                    </style>
-                </head>
-                <body>
-                    <button onclick="window.print()" class="no-print btn-print">🖨️ Cetak Bukti Penyerahan Uang</button>
-                    <div class="header">
-                        <h2>KEMENTERIAN KETENAGAKERJAAN REPUBLIK INDONESIA</h2>
-                        <h3>BALAI BESAR PELATIHAN VOKASI DAN PRODUKTIVITAS (BPVP) SURAKARTA</h3>
-                        <p>Jl. Brosot No.18, Serengan, Surakarta, Jawa Tengah 57156</p>
-                    </div>
-
-                    <div class="title-box">BUKTI TANDA TERIMA / PENYERAHAN UANG</div>
-
-                    <table class="table">
-                        <tr>
-                            <th>Nomor Pengajuan</th>
-                            <td><strong>{{ $pengajuan->no_pengajuan }}</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Nomor SP2D</th>
-                            <td>{{ $pengajuan->no_sp2d ?? '-' }}</td>
-                        </tr>
-                        <tr>
-                            <th>Nomor SPM</th>
-                            <td>{{ $pengajuan->no_spm ?? '-' }}</td>
-                        </tr>
-                        <tr>
-                            <th>Bidang / Unit Kerja</th>
-                            <td>{{ $pengajuan->bidang }}</td>
-                        </tr>
-                        <tr>
-                            <th>Nama Kegiatan</th>
-                            <td>{{ $pengajuan->nama_kegiatan }}</td>
-                        </tr>
-                        <tr>
-                            <th>Jumlah Pembayaran (Neto)</th>
-                            <td><strong style="font-size: 16px; color: #198754;">Rp {{ number_format($pengajuan->nilai_neto, 0, ',', '.') }}</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Tanggal Penyerahan/Cair</th>
-                            <td>{{ $pengajuan->tgl_cair ? \Carbon\Carbon::parse($pengajuan->tgl_cair)->format('d F Y') : date('d F Y') }}</td>
-                        </tr>
-                    </table>
-
-                    <p>Telah diserahkan uang sejumlah tersebut di atas untuk keperluan pelaksanaan kegiatan sebagaimana uraian di atas.</p>
-
-                    <table class="sig-table">
-                        <tr>
-                            <td>
-                                <p>Yang Menyerahkan,<br><strong>Bendahara Pengeluaran</strong></p>
-                                <div class="sig-space"></div>
-                                <p><strong>({{ $pengajuan->bendahara->name ?? 'Bendahara' }})</strong></p>
-                            </td>
-                            <td>
-                                <p>Yang Menerima,<br><strong>Pemohon / Penanggung Jawab</strong></p>
-                                <div class="sig-space"></div>
-                                <p><strong>({{ $pengajuan->user->name ?? 'Pemohon' }})</strong></p>
-                            </td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-            `;
-            printWin.document.write(content);
-            printWin.document.close();
+            window.open("{{ route('pengajuan.cetak_bukti', $pengajuan->id) }}", "_blank");
         }
     </script>
 @endsection

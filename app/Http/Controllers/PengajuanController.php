@@ -1007,6 +1007,12 @@ class PengajuanController extends Controller
         return view('pengajuan.cetak', compact('pengajuan'));
     }
 
+    public function cetakBukti($id)
+    {
+        $pengajuan = PengajuanLs::with(['user', 'bendahara'])->findOrFail($id);
+        return view('pengajuan.cetak_bukti', compact('pengajuan'));
+    }
+
     // =========================================================
     // POIN 1: PENATAUSAHAAN SPJ (3 Status Baru)
     // =========================================================

@@ -54,6 +54,7 @@ Route::middleware(['auth'])->group(function () {
     // --- FITUR EKSPOR EXCEL & CETAK ---
     Route::get('/pengajuan-excel', [PengajuanController::class, 'exportExcel'])->name('pengajuan.excel');
     Route::get('/pengajuan/{id}/cetak', [PengajuanController::class, 'cetak'])->name('pengajuan.cetak');
+    Route::get('/pengajuan/{id}/cetak-bukti', [PengajuanController::class, 'cetakBukti'])->name('pengajuan.cetak_bukti');
 
     // --- KELOLA USER (ADMIN KEUANGAN & IMPERSONATE) ---
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
