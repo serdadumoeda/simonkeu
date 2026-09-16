@@ -322,6 +322,24 @@ class PengajuanController extends Controller
             'link_google_drive' => 'required|url',
             'bukti_penyerahan' => 'nullable|url',
             'spj_status' => 'nullable|string',
+        ], [
+            'no_pengajuan.required' => 'Nomor Pengajuan wajib diisi.',
+            'no_pengajuan.unique' => 'Nomor Pengajuan sudah pernah digunakan, gunakan nomor lain.',
+            'tgl_pengajuan.required' => 'Tanggal Pengajuan wajib diisi.',
+            'bidang.required' => 'Bidang / UPTD wajib dipilih.',
+            'kategori_pengajuan.required' => 'Kategori Pengajuan wajib dipilih.',
+            'nama_kegiatan.required' => 'Nama Kegiatan wajib diisi.',
+            'no_akun.required' => 'Nomor Akun wajib diisi.',
+            'jenis_belanja.required' => 'Jenis Belanja wajib dipilih.',
+            'nilai_bruto.required' => 'Nilai Bruto wajib diisi.',
+            'nilai_neto.required' => 'Nilai Neto wajib diisi.',
+            'no_spm.required' => 'Nomor SPM wajib diisi.',
+            'tgl_spm.required' => 'Tanggal SPM wajib diisi.',
+            'no_sp2d.required' => 'Nomor SP2D wajib diisi.',
+            'tgl_cair.required' => 'Tanggal Cair SP2D wajib diisi.',
+            'link_google_drive.required' => 'Link Google Drive SPJ wajib diisi.',
+            'link_google_drive.url' => 'Format Link Google Drive tidak valid (harus diawali http/https).',
+            'bukti_penyerahan.url' => 'Format Link Bukti Penyerahan tidak valid.',
         ]);
 
         $potonganPajak = $request->filled('potongan_pajak') ? $request->potongan_pajak : 0;
@@ -350,35 +368,44 @@ class PengajuanController extends Controller
             \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
         } catch (\Throwable $e) {}
 
-        $pengajuan = PengajuanLs::create([
-            'no_pengajuan' => $request->no_pengajuan,
-            'tgl_pengajuan' => $request->tgl_pengajuan,
-            'user_id' => Auth::id(),
-            'operator_pembayaran_id' => Auth::id(),
-            'bendahara_id' => Auth::id(),
-            'email_pemohon' => Auth::user()->email,
-            'bidang' => $request->bidang,
-            'nama_kegiatan' => $request->nama_kegiatan,
-            'no_akun' => $request->no_akun,
-            'jenis_belanja' => $request->jenis_belanja,
-            'nilai_bruto' => $request->nilai_bruto,
-            'potongan_pajak' => $potonganPajak,
-            'nilai_neto' => $nilaiNeto,
-            'uraian_pembayaran' => $request->uraian_pembayaran ?? '',
-            'link_google_drive' => $request->link_google_drive,
-            'bukti_penyerahan' => $request->bukti_penyerahan,
-            'no_spm' => $request->no_spm,
-            'tgl_spm' => $request->tgl_spm,
-            'no_sp2d' => $request->no_sp2d,
-            'tgl_cair' => $request->tgl_cair,
-            'status' => $request->status,
-            'kategori_pengajuan' => $request->kategori_pengajuan,
-            'data_dukung_json' => $dataDukungJson,
-            'spj_status' => $request->spj_status ?? ($request->status == 'Selesai' ? 'SPJ Lengkap' : 'Belum Upload'),
-            'spj_deadline' => $spjDeadline,
-        ]);
+        try {
+            $pengajuan = PengajuanLs::create([
+                'no_pengajuan' => $request->no_pengajuan,
+                'tgl_pengajuan' => $request->tgl_pengajuan,
+                'user_id' => Auth::id(),
+                'operator_pembayaran_id' => Auth::id(),
+                'bendahara_id' => Auth::id(),
+                'bidang' => $request->bidang,
+                'nama_kegiatan' => $request->nama_kegiatan,
+                'no_akun' => $request->no_akun,
+                'jenis_belanja' => $request->jenis_belanja,
+                'nilai_bruto' => $request->nilai_bruto,
+                'potongan_pajak' => $potonganPajak,
+                'nilai_neto' => $nilaiNeto,
+                'uraian_pembayaran' => $request->uraian_pembayaran ?? '',
+                'link_google_drive' => $request->link_google_drive,
+                'bukti_penyerahan' => $request->bukti_penyerahan,
+                'no_spm' => $request->no_spm,
+                'tgl_spm' => $request->tgl_spm,
+                'no_sp2d' => $request->no_sp2d,
+                'tgl_cair' => $request->tgl_cair,
+                'status' => $request->status,
+                'kategori_pengajuan' => $request->kategori_pengajuan,
+                'data_dukung_json' => $dataDukungJson,
+                'spj_status' => $request->spj_status ?? ($request->status == 'Selesai' ? 'SPJ Lengkap' : 'Belum Upload'),
+                'spj_deadline' => $spjDeadline,
+            ]);
 
-        return redirect()->route('pengajuan.index')->with('success', 'Data pengajuan lampau ' . $pengajuan->no_pengajuan . ' berhasil direkam dengan status ' . $pengajuan->status . '.');
+            return redirect()->route('pengajuan.index')->with('success', 'Data pengajuan lampau ' . $pengajuan->no_pengajuan . ' berhasil direkam dengan status ' . $pengajuan->status . '.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('storeLampau error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['_token']),
+            ]);
+            return redirect()->back()->withInput()->withErrors([
+                'database' => 'Gagal menyimpan data: ' . $e->getMessage()
+            ]);
+        }
     }
 
     // 4. DETAIL PENGAJUAN (Untuk Verifikasi/Approval)

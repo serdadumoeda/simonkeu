@@ -243,10 +243,10 @@
                 </div>
 
                 <div class="col-md-6 mb-2">
-                    <label class="form-label small fw-semibold text-secondary">Link Bukti Penyerahan (Wajib) <span class="text-danger">*</span></label>
+                    <label class="form-label small fw-semibold text-secondary">Link Bukti Penyerahan (Opsional)</label>
                     <div class="input-group">
                         <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-file-earmark-arrow-up"></i></span>
-                        <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm gdrive-input" placeholder="https://drive.google.com/..." value="{{ old('bukti_penyerahan') }}" oninput="validateGDriveUrl(this)" required>
+                        <input type="url" name="bukti_penyerahan" class="form-control border-0 shadow-sm gdrive-input" placeholder="https://drive.google.com/..." value="{{ old('bukti_penyerahan') }}" oninput="validateGDriveUrl(this)">
                     </div>
                 </div>
 
