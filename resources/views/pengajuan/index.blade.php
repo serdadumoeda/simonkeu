@@ -111,7 +111,14 @@
                         <tr>
                             <td class="ps-3"><strong>{{ $p->no_pengajuan }}</strong></td>
                             <td>{{ \Carbon\Carbon::parse($p->tgl_pengajuan)->format('d/m/Y') }}</td>
-                            <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1 rounded">{{ $p->bidang }}</span></td>
+                            <td>
+                                @if(str_contains(strtoupper($p->bidang), 'UPTD'))
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 rounded me-1" style="font-size: 10px;"><i class="bi bi-building"></i> UPTD</span>
+                                    <span class="fw-semibold text-dark small" title="Akun Pemohon UPTD">{{ $p->user ? $p->user->name : 'UPTD' }}</span>
+                                @else
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1 rounded">{{ $p->bidang }}</span>
+                                @endif
+                            </td>
                             <td><div class="text-truncate" style="max-width: 180px;" title="{{ $p->nama_kegiatan }}">{{ $p->nama_kegiatan }}</div></td>
                             <td class="fw-bold text-success">Rp {{ number_format($p->nilai_neto, 0, ',', '.') }}</td>
                             <td>

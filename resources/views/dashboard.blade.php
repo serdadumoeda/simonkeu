@@ -862,7 +862,8 @@
                             </td>
                             <td class="py-3">
                                 @if($item['is_uptd'])
-                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 rounded" style="font-size: 10px;"><i class="bi bi-building"></i> {{ $p->bidang }}</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 rounded me-1" style="font-size: 10px;"><i class="bi bi-building"></i> UPTD</span>
+                                    <span class="fw-semibold text-dark small" title="Akun Pemohon UPTD">{{ $p->user ? $p->user->name : 'UPTD' }}</span>
                                 @else
                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1 rounded" style="font-size: 10px;">{{ $p->bidang }}</span>
                                 @endif
