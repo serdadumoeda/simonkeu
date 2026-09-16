@@ -782,66 +782,50 @@
 
     <!-- 5. TABEL PEMANTAUAN RINCI MONITORING SPM (PERFECTLY SPACED SLA GUIDE & TABLE) -->
     <div class="card card-custom shadow-sm border-0 p-4 bg-white mb-4" style="border-radius: 18px;">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3 pb-3 border-bottom">
-            <div>
-                <h6 class="fw-bold text-dark mb-1">
-                    <i class="bi bi-stopwatch-fill text-primary me-2"></i>Pemantauan Rinci SPM & Status Ketepatan Waktu (SLA)
-                </h6>
-                <span class="text-muted small" style="font-size: 11.5px;">Menampilkan {{ count($daftarSpmMonitoring) }} dokumen terpantau di sistem</span>
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3 pb-3 border-bottom">
+            <!-- Left Side: Title, Document Count, & Compact SLA Legend -->
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-stopwatch-fill text-primary me-1.5"></i>Pemantauan Rinci SPM & Status SLA
+                    </h6>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2.5 py-0.5" style="font-size: 11px;">
+                        {{ count($daftarSpmMonitoring) }} Dokumen Terpantau
+                    </span>
+                </div>
+                
+                <!-- Sleek Compact SLA Legend Badges -->
+                <div class="d-flex align-items-center gap-2 mt-1 flex-wrap" style="font-size: 11.5px;">
+                    <span class="text-muted fw-semibold me-1" style="font-size: 11px;"><i class="bi bi-info-circle me-1"></i>Panduan Status:</span>
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1" title="Selesai ≤ Batas Waktu SLA">
+                        🟢 Tepat Waktu (≤ SLA)
+                    </span>
+                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-50 rounded-pill px-2.5 py-1" title="Berjalan ≤ Batas Waktu SLA">
+                        🟡 Dalam Proses (≤ SLA)
+                    </span>
+                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-2.5 py-1" title="Melebihi Batas Waktu SLA">
+                        🔴 Terlambat (> SLA)
+                    </span>
+                </div>
             </div>
 
-            <!-- Integrated SLA Legend Cards & Live Search Input with Status Filter -->
-            <div class="d-flex flex-column gap-3 mt-2 w-100">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-                    <span class="fw-bold text-dark" style="font-size: 13px;"><i class="bi bi-info-circle-fill text-primary me-1"></i> Panduan Status SLA</span>
-                    
-                    <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
-                        <!-- Filter Status SLA -->
-                        <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 190px;">
-                            <span class="input-group-text bg-white border-0 text-muted px-2.5"><i class="bi bi-funnel"></i></span>
-                            <select id="dashboard_spm_status_filter" class="form-select border-0 px-1 fw-medium text-dark" style="font-size: 11.5px;" onchange="filterDashboardSpmTable()">
-                                <option value="">Semua SLA</option>
-                                <option value="tepat">🟢 Tepat Waktu</option>
-                                <option value="proses">🟡 Dalam Proses</option>
-                                <option value="terlambat">🔴 Terlambat SLA</option>
-                            </select>
-                        </div>
-
-                        <!-- Live Search Input -->
-                        <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="max-width: 260px;">
-                            <span class="input-group-text bg-white border-0 text-muted px-3"><i class="bi bi-search"></i></span>
-                            <input type="text" id="dashboard_spm_search" class="form-control border-0 px-2" placeholder="Cari No Pengajuan, Kegiatan, SPM..." onkeyup="filterDashboardSpmTable()">
-                        </div>
-                    </div>
+            <!-- Right Side: Filter Dropdown & Search Input Side-by-Side in 1 Line -->
+            <div class="d-flex align-items-center gap-2 flex-wrap ms-lg-auto">
+                <!-- Filter Status SLA -->
+                <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="width: 175px;">
+                    <span class="input-group-text bg-white border-0 text-muted px-2.5"><i class="bi bi-funnel-fill text-primary"></i></span>
+                    <select id="dashboard_spm_status_filter" class="form-select border-0 px-1 fw-medium text-dark" style="font-size: 11.5px;" onchange="filterDashboardSpmTable()">
+                        <option value="">Semua SLA</option>
+                        <option value="tepat">🟢 Tepat Waktu</option>
+                        <option value="proses">🟡 Dalam Proses</option>
+                        <option value="terlambat">🔴 Terlambat SLA</option>
+                    </select>
                 </div>
-                <div class="sla-guide-container">
-                    <div class="sla-guide-card sla-tepat">
-                        <div class="sla-guide-icon icon-tepat">
-                            <i class="bi bi-check-circle-fill"></i>
-                        </div>
-                        <div>
-                            <div class="sla-guide-label text-success">🟢 Tepat Waktu</div>
-                            <div class="sla-guide-desc">Selesai ≤ Batas SLA</div>
-                        </div>
-                    </div>
-                    <div class="sla-guide-card sla-proses">
-                        <div class="sla-guide-icon icon-proses">
-                            <i class="bi bi-clock-history"></i>
-                        </div>
-                        <div>
-                            <div class="sla-guide-label" style="color: #b45309;">🟡 Dalam Proses</div>
-                            <div class="sla-guide-desc">Berjalan ≤ Batas SLA</div>
-                        </div>
-                    </div>
-                    <div class="sla-guide-card sla-terlambat">
-                        <div class="sla-guide-icon icon-terlambat">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                        </div>
-                        <div>
-                            <div class="sla-guide-label text-danger">🔴 Terlambat</div>
-                            <div class="sla-guide-desc">Melebihi Batas Waktu SLA</div>
-                        </div>
-                    </div>
+
+                <!-- Live Search Input -->
+                <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-light-subtle" style="width: 250px;">
+                    <span class="input-group-text bg-white border-0 text-muted px-2.5"><i class="bi bi-search"></i></span>
+                    <input type="text" id="dashboard_spm_search" class="form-control border-0 px-2" placeholder="Cari No Pengajuan, SPM..." onkeyup="filterDashboardSpmTable()">
                 </div>
             </div>
         </div>
