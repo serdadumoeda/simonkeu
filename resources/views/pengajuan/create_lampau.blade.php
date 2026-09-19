@@ -50,7 +50,7 @@
                     <label class="form-label small fw-semibold text-secondary">Nomor Pengajuan <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-muted border-0 shadow-sm"><i class="bi bi-tag-fill"></i></span>
-                        <input type="text" name="no_pengajuan" class="form-control border-0 bg-light shadow-sm fw-semibold" value="{{ old('no_pengajuan', $noPengajuanBaru) }}" required>
+                        <input type="text" name="no_pengajuan" id="input_no_pengajuan" class="form-control border-0 bg-light shadow-sm fw-semibold" value="{{ old('no_pengajuan', $noPengajuanBaru) }}" required>
                     </div>
                 </div>
 
@@ -58,7 +58,7 @@
                     <label class="form-label small fw-semibold text-secondary">Tanggal Pengajuan <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-white text-muted border-0 shadow-sm"><i class="bi bi-calendar-event"></i></span>
-                        <input type="date" name="tgl_pengajuan" class="form-control border-0 shadow-sm" value="{{ old('tgl_pengajuan', date('Y-m-d')) }}" required>
+                        <input type="date" name="tgl_pengajuan" id="input_tgl_pengajuan" class="form-control border-0 shadow-sm" value="{{ old('tgl_pengajuan', date('Y-m-d')) }}" onchange="updateNoPengajuanDate()" required>
                     </div>
                 </div>
                 
@@ -384,12 +384,37 @@
             }
         }
 
+        function updateNoPengajuanDate() {
+            const tglInput = document.getElementById('input_tgl_pengajuan');
+            const noPengajuanInput = document.getElementById('input_no_pengajuan');
+            if (!tglInput || !noPengajuanInput || !tglInput.value) return;
+
+            const dateVal = new Date(tglInput.value);
+            if (isNaN(dateVal.getTime())) return;
+
+            const day = String(dateVal.getDate()).padStart(2, '0');
+            const month = String(dateVal.getMonth() + 1).padStart(2, '0');
+            const year = dateVal.getFullYear();
+            const dateStr = `${day}${month}${year}`;
+
+            const currentVal = noPengajuanInput.value || '';
+            const match = currentVal.match(/^(KU-)\d{6,8}(-\d+)$/i);
+            if (match) {
+                noPengajuanInput.value = `${match[1]}${dateStr}${match[2]}`;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             hitungNeto();
             if (document.getElementById('select_kategori').value) {
                 renderDataDukungFields();
             }
             document.querySelectorAll('.gdrive-input').forEach(el => validateGDriveUrl(el));
+            
+            const tglElem = document.getElementById('input_tgl_pengajuan');
+            if (tglElem) {
+                tglElem.addEventListener('change', updateNoPengajuanDate);
+            }
         });
     </script>
 @endsection

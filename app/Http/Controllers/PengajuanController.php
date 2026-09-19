@@ -14,8 +14,11 @@ class PengajuanController extends Controller
     /// 1. DAFTAR PENGAJUAN (Mendukung Filter Role Khusus)
     public function index(Request $request)
     {
-        // Mulai membuat query untuk mengambil data pengajuan
-        $query = PengajuanLs::with('user')->orderBy('created_at', 'desc');
+        // Mulai membuat query untuk mengambil data pengajuan (diurutkan kronologis tanggal pengajuan)
+        $query = PengajuanLs::with('user')
+            ->orderBy('tgl_pengajuan', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc');
 
         $user = Auth::user(); // Mengambil data user yang sedang login
 
@@ -277,14 +280,20 @@ class PengajuanController extends Controller
         $daftarBidang = array_unique(array_merge($daftarBidang, $defaultBidang));
         sort($daftarBidang);
 
-        // Generate No Pengajuan candidate
-        $tglBulanTahun = date('dmy');
+        // Generate No Pengajuan candidate (menggunakan format dmY 8-digit)
+        $tglBulanTahun = date('dmY');
         try {
-            $pengajuanTerakhir = PengajuanLs::latest('id')->first();
+            $pengajuanTerakhir = PengajuanLs::where('no_pengajuan', 'LIKE', "KU-$tglBulanTahun-%")
+                ->orderBy('no_pengajuan', 'desc')
+                ->first();
             $urutan = 1;
             if ($pengajuanTerakhir && $pengajuanTerakhir->no_pengajuan) {
-                if (preg_match('/-(\d+)$/', $pengajuanTerakhir->no_pengajuan, $matches)) {
-                    $urutan = (int) $matches[1] + 1;
+                $parts = explode('-', $pengajuanTerakhir->no_pengajuan);
+                $lastNum = end($parts);
+                if (is_numeric($lastNum)) {
+                    $urutan = (int) $lastNum + 1;
+                } else {
+                    $urutan = (int) substr($pengajuanTerakhir->no_pengajuan, -3) + 1;
                 }
             }
         } catch (\Throwable $e) {
@@ -369,9 +378,13 @@ class PengajuanController extends Controller
         } catch (\Throwable $e) {}
 
         try {
+            $tglPengajuanCarbon = \Carbon\Carbon::parse($request->tgl_pengajuan)->setTimeFrom(now());
+
             $pengajuan = PengajuanLs::create([
                 'no_pengajuan' => $request->no_pengajuan,
                 'tgl_pengajuan' => $request->tgl_pengajuan,
+                'created_at' => $tglPengajuanCarbon,
+                'updated_at' => $tglPengajuanCarbon,
                 'user_id' => Auth::id(),
                 'operator_pembayaran_id' => Auth::id(),
                 'bendahara_id' => Auth::id(),
@@ -966,7 +979,9 @@ class PengajuanController extends Controller
     // FITUR EKSPOR KE EXCEL
     public function exportExcel(Request $request)
     {
-        $query = PengajuanLs::orderBy('created_at', 'desc');
+        $query = PengajuanLs::orderBy('tgl_pengajuan', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc');
         $user = Auth::user();
 
         // =========================================================
