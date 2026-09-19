@@ -114,7 +114,11 @@
                             <td>
                                 @if(str_contains(strtoupper($p->bidang), 'UPTD'))
                                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 rounded me-1" style="font-size: 10px;"><i class="bi bi-building"></i> UPTD</span>
-                                    <span class="fw-semibold text-dark small" title="Akun Pemohon UPTD">{{ $p->user ? $p->user->name : 'UPTD' }}</span>
+                                    @if($p->bidang !== 'UPTD')
+                                        <span class="fw-semibold text-dark small">{{ $p->bidang }}</span>
+                                    @elseif($p->user && $p->user->role === 'Operator Bidang')
+                                        <span class="fw-semibold text-dark small" title="Akun Pemohon UPTD">{{ $p->user->name }}</span>
+                                    @endif
                                 @else
                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1 rounded">{{ $p->bidang }}</span>
                                 @endif

@@ -317,8 +317,8 @@
                     <i class="bi bi-file-earmark-plus-fill"></i>
                 </div>
                 <div class="stepper-label">Pemohon</div>
-                <div class="stepper-sublabel text-truncate" style="max-width: 110px;" title="{{ $pengajuan->user->name ?? '' }}">
-                    {{ $pengajuan->user->name ?? 'Pemohon' }}
+                <div class="stepper-sublabel text-truncate" style="max-width: 110px;" title="{{ ($pengajuan->user && $pengajuan->user->role === 'Operator Bidang') ? $pengajuan->user->name : $pengajuan->bidang }}">
+                    {{ ($pengajuan->user && $pengajuan->user->role === 'Operator Bidang') ? $pengajuan->user->name : $pengajuan->bidang }}
                 </div>
             </div>
 
@@ -996,7 +996,7 @@
                 <div class="alert alert-info py-2 mb-3 small">
                     <i class="bi bi-info-circle-fill me-1"></i>
                     <strong>No SPP:</strong> {{ $pengajuan->no_spp ?? '-' }} |
-                    <strong>UPTD:</strong> {{ $pengajuan->user->name ?? '-' }} |
+                    <strong>UPTD:</strong> {{ ($pengajuan->user && $pengajuan->user->role === 'Operator Bidang') ? $pengajuan->user->name : $pengajuan->bidang }} |
                     <strong>Diunggah:</strong> {{ $pengajuan->spp_signed_at ? \Carbon\Carbon::parse($pengajuan->spp_signed_at)->format('d/m/Y H:i') : '-' }}
                 </div>
 
