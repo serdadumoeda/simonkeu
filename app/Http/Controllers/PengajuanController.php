@@ -373,9 +373,7 @@ class PengajuanController extends Controller
             $spjDeadline = \Carbon\Carbon::parse($request->tgl_cair)->addDays(30)->format('Y-m-d');
         }
 
-        try {
-            \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-        } catch (\Throwable $e) {}
+        // Constraint sudah dihapus permanen via migration 2026_10_08_010000
 
         try {
             $tglPengajuanCarbon = \Carbon\Carbon::parse($request->tgl_pengajuan)->setTimeFrom(now());
@@ -506,10 +504,6 @@ class PengajuanController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $id, $user) {
-                try {
-                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-                } catch (\Throwable $e) {}
-
                 $pengajuan = PengajuanLs::findOrFail($id);
                 $pengajuan->verifikator_id = $user->id;
 
@@ -589,10 +583,6 @@ class PengajuanController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $id, $user) {
-                try {
-                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-                } catch (\Throwable $e) {}
-
                 $pengajuan = PengajuanLs::findOrFail($id);
                 $pengajuan->ppk_id = $user->id;
 
@@ -692,10 +682,6 @@ class PengajuanController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $id, $user) {
-                try {
-                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-                } catch (\Throwable $e) {}
-
                 $pengajuan = PengajuanLs::findOrFail($id);
 
                 if ($pengajuan->status != 'Penerbitan SPP') {
@@ -749,9 +735,6 @@ class PengajuanController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $id, $pengajuan, $user) {
-                try {
-                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-                } catch (\Throwable $e) {}
 
                 $request->validate([
                     'spp_signed_link' => 'required|url',
@@ -792,10 +775,6 @@ class PengajuanController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $id, $user) {
-                try {
-                    DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-                } catch (\Throwable $e) {}
-
                 $pengajuan = PengajuanLs::findOrFail($id);
 
                 if ($pengajuan->status != 'SPP Menunggu TTD UPTD' || !$pengajuan->spp_signed_link) {
@@ -865,9 +844,7 @@ class PengajuanController extends Controller
         $user = Auth::user();
 
         try {
-            try {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE pengajuan_ls DROP CONSTRAINT IF EXISTS pengajuan_ls_status_check");
-            } catch (\Throwable $e) {}
+            // Constraint sudah dihapus permanen via migration 2026_10_08_010000
 
             $catatan = $request->catatan;
 

@@ -60,9 +60,7 @@ class UserController extends Controller
         ]);
 
         try {
-            try {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
-            } catch (\Throwable $e) {}
+            // Constraint sudah dihapus permanen via migration 2026_10_08_010000
 
             $bidangVal = trim($request->bidang);
             if ($bidangVal === 'custom') {
