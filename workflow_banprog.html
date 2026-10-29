@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Banprog — simonKeu BPVP Surakarta</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            line-height: 1.3;
+            font-size: 9.5px;
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 6mm 8mm;
+        }
+
+        .pdf-page {
+            width: 100%;
+            height: 190mm;
+            max-height: 190mm;
+            overflow: hidden;
+            position: relative;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .pdf-page-break {
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .page-content { flex: 1; }
+
+        .pdf-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 8px;
+            color: #94a3b8;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 3px;
+            margin-top: 4px;
+        }
+
+        /* Header */
+        .doc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #7c3aed;
+        }
+
+        .doc-header-left h1 {
+            font-size: 15px;
+            font-weight: 800;
+            color: #7c3aed;
+            letter-spacing: -0.4px;
+            line-height: 1.1;
+        }
+
+        .doc-header-left p {
+            font-size: 8.5px;
+            color: #64748b;
+            margin-top: 1px;
+        }
+
+        .doc-header-right {
+            text-align: right;
+            font-size: 8px;
+            color: #475569;
+            background: #f5f3ff;
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid #ddd6fe;
+        }
+
+        .doc-header-right strong { color: #7c3aed; }
+
+        /* Section */
+        .section-block { margin-bottom: 8px; }
+
+        h2.section-title {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #7c3aed;
+            margin-bottom: 4px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #ddd6fe;
+        }
+
+        .section-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 9px;
+            margin-right: 5px;
+            flex-shrink: 0;
+        }
+
+        /* Mermaid */
+        .mermaid-container {
+            background: #faf5ff;
+            border: 1px solid #ede9fe;
+            border-radius: 5px;
+            padding: 6px 4px;
+            margin-bottom: 6px;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .mermaid svg {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+
+        /* Role Cards */
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 5px;
+        }
+
+        .role-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 5px 3px;
+            text-align: center;
+        }
+
+        .role-card .role-icon { font-size: 13px; margin-bottom: 1px; }
+        .role-card .role-name { font-size: 8px; font-weight: 700; color: #3730a3; line-height: 1.1; }
+        .role-card .role-desc { font-size: 7px; color: #64748b; margin-top: 1px; line-height: 1.1; }
+
+        .role-card.pemohon   { border-top: 2px solid #3b82f6; }
+        .role-card.banprog   { border-top: 2px solid #8b5cf6; }
+        .role-card.verifier  { border-top: 2px solid #f59e0b; }
+        .role-card.approver  { border-top: 2px solid #10b981; }
+        .role-card.realisasi { border-top: 2px solid #ef4444; }
+        .role-card.admin     { border-top: 2px solid #6366f1; }
+        .role-card.lpks      { border-top: 2px solid #14b8a6; }
+
+        /* Two Column Layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 5px;
+        }
+
+        /* Compare Cards */
+        .compare-card {
+            border-radius: 5px;
+            padding: 6px 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .compare-card.banprog  { background: #faf5ff; border-left: 3px solid #8b5cf6; }
+        .compare-card.termin1  { background: #f0fdf4; border-left: 3px solid #22c55e; }
+        .compare-card.termin2  { background: #fffbeb; border-left: 3px solid #f59e0b; }
+
+        .compare-card h4 { font-size: 9.5px; font-weight: 700; margin-bottom: 3px; }
+        .compare-card.banprog h4  { color: #6b21a8; }
+        .compare-card.termin1 h4  { color: #166534; }
+        .compare-card.termin2 h4  { color: #92400e; }
+
+        .step-list { list-style: none; padding: 0; }
+        .step-list li {
+            padding: 2.5px 5px;
+            margin-bottom: 2px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.85);
+            font-size: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .step-num {
+            width: 13px; height: 13px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7.5px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .compare-card.banprog  .step-num { background: #8b5cf6; }
+        .compare-card.termin1  .step-num { background: #22c55e; }
+        .compare-card.termin2  .step-num { background: #f59e0b; }
+
+        /* Tables */
+        .status-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            font-size: 8px;
+            margin-bottom: 4px;
+        }
+
+        .status-table thead th {
+            background: #7c3aed;
+            color: white;
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        .status-table tbody tr:nth-child(even) { background: #faf5ff; }
+
+        .status-table tbody td {
+            padding: 3.5px 6px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 8px;
+            vertical-align: middle;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 7.5px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-draft      { background: #e2e8f0; color: #475569; }
+        .badge-draft2     { background: #ddd6fe; color: #5b21b6; }
+        .badge-verif      { background: #fde68a; color: #78350f; }
+        .badge-perbaikan  { background: #fee2e2; color: #991b1b; }
+        .badge-ppk        { background: #dbeafe; color: #1e40af; }
+        .badge-t1proses   { background: #d1fae5; color: #065f46; }
+        .badge-t1cair     { background: #a7f3d0; color: #064e3b; }
+        .badge-laporan    { background: #fef3c7; color: #92400e; }
+        .badge-t2proses   { background: #fbcfe8; color: #9d174d; }
+        .badge-selesai    { background: #8b5cf6; color: white; }
+
+        /* Checklist Table */
+        .checklist-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #ddd6fe;
+            font-size: 7.5px;
+        }
+
+        .checklist-table thead th {
+            background: #6d28d9;
+            color: white;
+            padding: 3px 5px;
+            font-size: 7.5px;
+        }
+
+        .checklist-table tbody td {
+            padding: 2.5px 5px;
+            border-bottom: 1px solid #ede9fe;
+            vertical-align: middle;
+        }
+
+        .checklist-table tbody tr:nth-child(even) { background: #faf5ff; }
+
+        .highlight-yellow { background: #fef9c3 !important; font-weight: 600; color: #713f12; }
+
+        /* Diff box */
+        .diff-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 6px;
+        }
+
+        .diff-col {
+            border-radius: 5px;
+            padding: 5px 7px;
+            font-size: 7.8px;
+        }
+
+        .diff-col.old { background: #eff6ff; border: 1px solid #93c5fd; }
+        .diff-col.new { background: #faf5ff; border: 1px solid #c4b5fd; }
+
+        .diff-col h4 { font-size: 8.5px; font-weight: 700; margin-bottom: 3px; }
+        .diff-col.old h4 { color: #1e40af; }
+        .diff-col.new h4 { color: #6b21a8; }
+
+        .diff-col ul { padding-left: 12px; }
+        .diff-col li { margin-bottom: 1.5px; line-height: 1.3; }
+
+        /* Print Button */
+        .print-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(124,58,237,0.3);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Cetak PDF</button>
+
+<!-- ==================== HALAMAN 1 ==================== -->
+<div class="pdf-page pdf-page-break">
+    <div class="page-content">
+
+        <!-- HEADER -->
+        <div class="doc-header">
+            <div class="doc-header-left">
+                <h1>🏫 simonKeu — Workflow Banprog LPKS</h1>
+                <p>Skema Bantuan Program (Banprog) LPKS Binaan BPVP Surakarta — Modul Pengajuan Termin</p>
+            </div>
+            <div class="doc-header-right">
+                Dokumen Resmi Alur Kerja Banprog<br>
+                <strong>Halaman 1 dari 3</strong>
+            </div>
+        </div>
+
+        <!-- SECTION 1: ALUR UTAMA BANPROG -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">1</span>
+                Alur Utama Pengajuan Banprog — End-to-End (Termin 1 → Termin 2)
+            </h2>
+            <div class="mermaid-container">
+                <pre class="mermaid">
+flowchart LR
+    subgraph INISIASI["Inisiasi"]
+        A["🔐 Login simonKeu\n(Bidang + role Banprog)"] --> B["📋 Form Banprog\n(Isi Identitas LPKS,\nKejuruan, Nilai)"]
+        B --> C{Simpan?}
+        C -->|Draft| D["💾 Draft Banprog"]
+        C -->|Ajukan| E["📤 Draft → Ajukan\nMenunggu Verifikasi"]
+    end
+
+    subgraph VERIF["Verifikasi Administrasi"]
+        E --> F["🔍 Verifikator Keuangan\nCek 13 Checklist Termin 1\n(PKS, RPDB/RAB, SPTJM,\nNPWP, Rekening, dll)"]
+        F -->|Setuju| G["✅ Proses Persetujuan PPK"]
+        F -->|Revisi| R["⚠️ Perlu Perbaikan\n(Catatan Koreksi)"]
+    end
+
+    subgraph PPK_TAHAP["Persetujuan PPK"]
+        G --> H["📝 PPK Review\n& Persetujuan Komitmen\nBanprog"]
+        H -->|Setuju| I["🟢 Disetujui PPK\n→ Proses Termin 1"]
+        H -->|Tolak| R
+    end
+
+    subgraph TERMIN1["Pencairan Termin 1 (70%)"]
+        I --> J["💰 Op. Pembayaran\nInput SPM Termin 1"]
+        J --> K["🏦 Bendahara\nInput SP2D + Tgl Cair\n(70% nilai banprog)"]
+        K --> L["📗 Status: Termin 1 Cair\n(Menunggu Laporan)"]
+    end
+
+    subgraph LAPORAN["Laporan & Pengajuan Termin 2"]
+        L --> M["🏫 LPKS Unggah\nLaporan Pelaksanaan\n(Link Drive)"]
+        M --> N["🔍 Verifikator Keuangan\nCek Checklist Termin 2\n(Laporan, Foto, Absensi,\nRekap Penggunaan Dana)"]
+        N -->|Setuju| O["📝 PPK Setujui Termin 2"]
+        N -->|Revisi| P["⚠️ Perbaikan Laporan"]
+        P --> M
+    end
+
+    subgraph TERMIN2["Pencairan Termin 2 (30%)"]
+        O --> Q["💰 Op. Pembayaran\nInput SPM Termin 2"]
+        Q --> S["🏦 Bendahara\nInput SP2D Termin 2\n(30% nilai banprog)"]
+        S --> T["🎉 Status: Selesai\n(Banprog Tuntas)"]
+    end
+
+    R --> U["📝 Bidang/LPKS Perbaiki\n& Resubmit"] --> E
+
+    style INISIASI fill:#eff6ff,stroke:#3b82f6,stroke-width:1px
+    style VERIF fill:#fff7ed,stroke:#f97316,stroke-width:1px
+    style PPK_TAHAP fill:#f0fdf4,stroke:#22c55e,stroke-width:1px
+    style TERMIN1 fill:#faf5ff,stroke:#8b5cf6,stroke-width:1px
+    style LAPORAN fill:#fffbeb,stroke:#f59e0b,stroke-width:1px
+    style TERMIN2 fill:#ecfdf5,stroke:#10b981,stroke-width:1px
+                </pre>
+            </div>
+        </div>
+
+        <!-- SECTION 2: ROLE BANPROG -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">2</span>
+                Peran Pengguna dalam Skema Banprog (Role Matrix)
+            </h2>
+            <div class="role-grid">
+                <div class="role-card pemohon">
+                    <div class="role-icon">🏢</div>
+                    <div class="role-name">Operator Bidang<br>(+ Sub-Role Banprog)</div>
+                    <div class="role-desc">Input pengajuan banprog & kelola LPKS binaan</div>
+                </div>
+                <div class="role-card lpks">
+                    <div class="role-icon">🏫</div>
+                    <div class="role-name">LPKS<br>(Lembaga Eksternal)</div>
+                    <div class="role-desc">Upload laporan pelaksanaan Termin 2</div>
+                </div>
+                <div class="role-card verifier">
+                    <div class="role-icon">🔍</div>
+                    <div class="role-name">Verifikator Keuangan</div>
+                    <div class="role-desc">Verif. 13 checklist Termin 1 & laporan Termin 2</div>
+                </div>
+                <div class="role-card approver">
+                    <div class="role-icon">✅</div>
+                    <div class="role-name">PPK</div>
+                    <div class="role-desc">Persetujuan komitmen Termin 1 & Termin 2</div>
+                </div>
+                <div class="role-card realisasi">
+                    <div class="role-icon">💻</div>
+                    <div class="role-name">Op. Pembayaran</div>
+                    <div class="role-desc">Input SPM Termin 1 & Termin 2 (SAKTI)</div>
+                </div>
+                <div class="role-card realisasi">
+                    <div class="role-icon">🏦</div>
+                    <div class="role-name">Bendahara</div>
+                    <div class="role-desc">SP2D & transfer ke rekening LPKS</div>
+                </div>
+                <div class="role-card admin">
+                    <div class="role-icon">🛡️</div>
+                    <div class="role-name">Admin Keuangan</div>
+                    <div class="role-desc">Akses penuh & kelola semua data banprog</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="pdf-footer">
+        <span>Workflow Banprog — simonKeu BPVP Surakarta</span>
+        <span>Halaman 1 dari 3</span>
+    </div>
+</div>
+
+<!-- ==================== HALAMAN 2 ==================== -->
+<div class="pdf-page pdf-page-break">
+    <div class="page-content">
+
+        <!-- HEADER HALAMAN 2 -->
+        <div class="doc-header">
+            <div class="doc-header-left">
+                <h1>🏫 simonKeu — Workflow Banprog LPKS</h1>
+                <p>Skema Bantuan Program (Banprog) LPKS Binaan BPVP Surakarta — Modul Pengajuan Termin</p>
+            </div>
+            <div class="doc-header-right">
+                Dokumen Resmi Alur Kerja Banprog<br>
+                <strong>Halaman 2 dari 3</strong>
+            </div>
+        </div>
+
+        <!-- SECTION 3: STATE MACHINE STATUS -->
+        <div class="section-block">
+            <h2 class="section-title">
+                <span class="section-number">3</span>
+                Diagram Transisi Status Banprog (State Machine)
+            </h2>
+            <div class="mermaid-container">
+                <pre class="mermaid">
+stateDiagram-v2
+    direction LR
+    [*] --> Draft_Banprog
+    Draft_Banprog --> MenVerif : Bidang Ajukan
+    MenVerif --> Disetujui_PPK : Verifikator OK
+    MenVerif --> Perbaikan : Verifikator Revisi
+    Disetujui_PPK --> ProsesSPM_T1 : PPK Setujui
+    Disetujui_PPK --> Perbaikan : PPK Tolak
+    ProsesSPM_T1 --> Termin1Cair : Bendahara SP2D T1
+    Termin1Cair --> MenungguLaporan : Otomatis
+    MenungguLaporan --> Perbaikan_Lap : Berkas Laporan Kurang
+    Perbaikan_Lap --> MenungguLaporan : LPKS/Bidang Upload Ulang
+    MenungguLaporan --> VerifLaporan : Bidang Submit Laporan
+    VerifLaporan --> Disetujui_PPK_T2 : Verifikator OK
+    VerifLaporan --> Perbaikan_Lap : Verifikator Revisi
+    Disetujui_PPK_T2 --> ProsesSPM_T2 : PPK Setujui
+    ProsesSPM_T2 --> Selesai : Bendahara SP2D T2
+    Perbaikan --> MenVerif : Resubmit
+    Selesai --> [*]
+
+    state "Draft Banprog" as Draft_Banprog
+    state "Menunggu Verifikasi" as MenVerif
+    state "Disetujui PPK (Termin 1)" as Disetujui_PPK
+    state "Proses SPM Termin 1" as ProsesSPM_T1
+    state "Termin 1 Cair ✓" as Termin1Cair
+    state "Menunggu Laporan LPKS" as MenungguLaporan
+    state "Verifikasi Laporan T2" as VerifLaporan
+    state "Disetujui PPK (Termin 2)" as Disetujui_PPK_T2
+    state "Proses SPM Termin 2" as ProsesSPM_T2
+    state "Perlu Perbaikan" as Perbaikan
+    state "Perbaikan Laporan" as Perbaikan_Lap
+    state "Selesai ✅" as Selesai
+                </pre>
+            </div>
+        </div>
+
+        <!-- SECTION 4 & 5: ALUR DETAIL DAN PERBEDAAN -->
+        <div class="two-col">
+
+            <!-- SECTION 4: Alur Termin 1 dan Termin 2 -->
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">4</span>
+                    Alur Termin 1 vs Termin 2
+                </h2>
+                <div class="compare-card termin1" style="margin-bottom: 5px;">
+                    <h4>📗 Alur Termin 1 — Pencairan 70%</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span> Bidang input pengajuan banprog + identitas LPKS</li>
+                        <li><span class="step-num">2</span> Upload 13 dokumen checklist ke Google Drive</li>
+                        <li><span class="step-num">3</span> Verifikator cek kelengkapan 13 dokumen</li>
+                        <li><span class="step-num">4</span> PPK beri persetujuan komitmen Termin 1</li>
+                        <li><span class="step-num">5</span> Operator Pembayaran input SPM SAKTI</li>
+                        <li><span class="step-num">6</span> Bendahara input SP2D → transfer 70% ke LPKS</li>
+                        <li><span class="step-num">7</span> Status otomatis → "Menunggu Laporan LPKS"</li>
+                    </ul>
+                </div>
+                <div class="compare-card termin2">
+                    <h4>📙 Alur Termin 2 — Pencairan 30%</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span> LPKS/Bidang unggah laporan pelaksanaan + bukti</li>
+                        <li><span class="step-num">2</span> Verifikator cek checklist laporan Termin 2</li>
+                        <li><span class="step-num">3</span> PPK beri persetujuan Termin 2</li>
+                        <li><span class="step-num">4</span> Operator Pembayaran input SPM Termin 2</li>
+                        <li><span class="step-num">5</span> Bendahara input SP2D → transfer 30% ke LPKS</li>
+                        <li><span class="step-num">6</span> Status → "Selesai" (Banprog Tuntas)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- SECTION 5: Perbedaan Banprog vs LS -->
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">5</span>
+                    Perbedaan Skema Banprog vs LS
+                </h2>
+                <div class="diff-box" style="grid-template-columns: 1fr; gap: 4px;">
+                    <div class="diff-col old">
+                        <h4>🔵 Skema LS (Existing)</h4>
+                        <ul>
+                            <li>Pemohon: UPTD / Bidang internal BPVP</li>
+                            <li>1 kali pencairan via SP2D</li>
+                            <li>Dokumen: SPM, SP2D, SPTB, DRPP</li>
+                            <li>Alur: Draft → Verif → PPK → SAKTI → SP2D → Selesai</li>
+                            <li>Tidak ada laporan pelaksanaan</li>
+                            <li>Tidak ada identitas lembaga penerima</li>
+                        </ul>
+                    </div>
+                    <div class="diff-col new">
+                        <h4>🟣 Skema Banprog (Baru)</h4>
+                        <ul>
+                            <li>Pemohon: Bidang (mengelola LPKS eksternal)</li>
+                            <li><strong>2 kali pencairan:</strong> Termin 1 (70%) + Termin 2 (30%)</li>
+                            <li>Dokumen: PKS, RPDB/RAB, SPTJM, NPWP, Rekening, 13 item checklist</li>
+                            <li>Alur tambahan: Laporan LPKS → Verif Laporan → Termin 2</li>
+                            <li><strong>Laporan pelaksanaan wajib</strong> sebelum Termin 2</li>
+                            <li><strong>Identitas LPKS:</strong> Nama, Kab/Kota, Kepala, No HP, Kejuruan</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="pdf-footer">
+        <span>Workflow Banprog — simonKeu BPVP Surakarta</span>
+        <span>Halaman 2 dari 3</span>
+    </div>
+</div>
+
+<!-- ==================== HALAMAN 3 ==================== -->
+<div class="pdf-page">
+    <div class="page-content">
+
+        <!-- HEADER HALAMAN 3 -->
+        <div class="doc-header">
+            <div class="doc-header-left">
+                <h1>🏫 simonKeu — Workflow Banprog LPKS</h1>
+                <p>Skema Bantuan Program (Banprog) LPKS Binaan BPVP Surakarta — Modul Pengajuan Termin</p>
+            </div>
+            <div class="doc-header-right">
+                Dokumen Resmi Alur Kerja Banprog<br>
+                <strong>Halaman 3 dari 3</strong>
+            </div>
+        </div>
+
+        <!-- SECTION 6: CHECKLIST 13 DOKUMEN TERMIN 1 + TERMIN 2 SIDE BY SIDE -->
+        <div class="two-col">
+
+            <!-- Checklist Termin 1 -->
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">6</span>
+                    Checklist 13 Dokumen — Pengajuan Termin 1
+                </h2>
+                <table class="checklist-table">
+                    <thead>
+                        <tr>
+                            <th style="width:18px;">No</th>
+                            <th>Uraian Dokumen</th>
+                            <th style="width:40px; text-align:center;">Jml</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align:center;">1</td>
+                            <td>Surat Permohonan Pencairan Bantuan kepada PPK (ditandatangani Kepala)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">2</td>
+                            <td>SK Penetapan Penerima Banprog</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">3</td>
+                            <td>Program Pelatihan &amp; Kurikulum</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr class="highlight-yellow">
+                            <td style="text-align:center;">4</td>
+                            <td>⭐ PKS (Perjanjian Kerja Sama)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">5</td>
+                            <td>RPDB/RAB (tidak lebih dari 70%)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">6</td>
+                            <td>Rencana Pembelian Bahan Pelatihan (dirinci jenis, jumlah, harga &amp; total biaya)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">7</td>
+                            <td>Surat Pernyataan Kesanggupan Melaksanakan Banprog</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">8</td>
+                            <td>Jadwal Pelaksanaan Pelatihan (ditandatangani Kepala BLKK)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">9</td>
+                            <td>SPTJM (Surat Pernyataan Tanggung Jawab Mutlak)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr class="highlight-yellow">
+                            <td style="text-align:center;">10</td>
+                            <td>⭐ Kuitansi</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">11</td>
+                            <td>Fotocopy NPWP</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">12</td>
+                            <td>Fotocopy Buku Tabungan</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">13</td>
+                            <td>Screenshot peserta pelatihan dari akun kelembagaan (16 siswa)</td>
+                            <td style="text-align:center;">2 Rp</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="font-size:7px; color:#6b7280; margin-top:3px;">⭐ Highlight kuning = dokumen prioritas kritis. Rp = Rangkap.</p>
+            </div>
+
+            <!-- Checklist Termin 2 + Matriks Status -->
+            <div>
+                <h2 class="section-title">
+                    <span class="section-number">7</span>
+                    Checklist Laporan — Pengajuan Termin 2
+                </h2>
+                <table class="checklist-table" style="margin-bottom: 6px;">
+                    <thead>
+                        <tr>
+                            <th style="width:18px;">No</th>
+                            <th>Uraian Dokumen Laporan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align:center;">1</td>
+                            <td>Surat Permohonan Pencairan Termin 2</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">2</td>
+                            <td>Laporan Pelaksanaan Kegiatan Pelatihan</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">3</td>
+                            <td>Daftar Hadir / Absensi Peserta (16 siswa)</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">4</td>
+                            <td>Dokumentasi / Foto Pelaksanaan Pelatihan</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">5</td>
+                            <td>Rekap Penggunaan Dana Termin 1 (70%)</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">6</td>
+                            <td>Bukti Pembelian Bahan Pelatihan (nota/kwitansi)</td>
+                        </tr>
+                        <tr class="highlight-yellow">
+                            <td style="text-align:center;">7</td>
+                            <td>⭐ Kuitansi Termin 2 (30%)</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:center;">8</td>
+                            <td>SPTJM Termin 2</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Matriks Status -->
+                <h2 class="section-title" style="margin-top: 4px;">
+                    <span class="section-number">8</span>
+                    Matriks Status Dokumen Banprog
+                </h2>
+                <table class="status-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Aktor Aktif</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="badge badge-draft2">Draft Banprog</span></td><td>Bidang / LPKS</td><td>Lengkapi & ajukan</td></tr>
+                        <tr><td><span class="badge badge-verif">Menunggu Verifikasi</span></td><td>Verifikator Keu</td><td>Cek 13 checklist T1</td></tr>
+                        <tr><td><span class="badge badge-perbaikan">Perlu Perbaikan</span></td><td>Bidang / LPKS</td><td>Revisi berkas & resubmit</td></tr>
+                        <tr><td><span class="badge badge-ppk">Proses Persetujuan PPK</span></td><td>PPK</td><td>Persetujuan Termin 1</td></tr>
+                        <tr><td><span class="badge badge-t1proses">Proses SPM Termin 1</span></td><td>Op. Pembayaran</td><td>Input SPM SAKTI T1</td></tr>
+                        <tr><td><span class="badge badge-t1cair">Termin 1 Cair ✓</span></td><td>Bendahara</td><td>SP2D T1 → Transfer 70%</td></tr>
+                        <tr><td><span class="badge badge-laporan">Menunggu Laporan LPKS</span></td><td>Bidang / LPKS</td><td>Upload laporan pelaksanaan</td></tr>
+                        <tr><td><span class="badge badge-verif">Verifikasi Laporan T2</span></td><td>Verifikator Keu</td><td>Cek checklist laporan T2</td></tr>
+                        <tr><td><span class="badge badge-t2proses">Proses Persetujuan PPK T2</span></td><td>PPK</td><td>Persetujuan Termin 2</td></tr>
+                        <tr><td><span class="badge badge-t2proses">Proses SPM Termin 2</span></td><td>Op. Pembayaran</td><td>Input SPM SAKTI T2</td></tr>
+                        <tr><td><span class="badge badge-selesai">Selesai ✅</span></td><td>—</td><td>Banprog tuntas 100%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <!-- SECTION 9: DATA TEKNIS IMPLEMENTASI -->
+        <div class="section-block" style="margin-top: 5px;">
+            <h2 class="section-title">
+                <span class="section-number">9</span>
+                Ringkasan Implementasi Teknis — Modul Banprog
+            </h2>
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Komponen</th>
+                        <th>Keterangan Teknis</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Migration</strong> <code>pengajuan_banprog</code></td><td>Field tambahan: nama_lpks, kabupaten_kota, nama_kepala_lpks, no_hp_kepala_lpks, kejuruan, nilai_termin1, nilai_termin2, status_banprog, tgl_pelaksanaan, no_sk_penetapan, laporan_link, checklist_t1_json, checklist_t2_json</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Model</strong> <code>PengajuanBanprog</code></td><td>Eloquent model, relasi ke User (verifikator, ppk, op pembayaran, bendahara), accessor progress & status</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Controller</strong> <code>BanprogController</code></td><td>index, create, store, show, verifikasi, ppkApproval, pencairanTermin1, uploadLaporan, verifikasiLaporan, pencairanTermin2, adminDelete</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Views</strong> <code>resources/views/banprog/</code></td><td>index.blade.php, create.blade.php (form + identitas LPKS), show.blade.php (checklist interaktif), cetak.blade.php</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Routes</strong> di <code>web.php</code></td><td>GET/POST /banprog, /buat-banprog, /banprog/{id}, /banprog/{id}/verifikasi, /banprog/{id}/approval-ppk, /banprog/{id}/termin1, /banprog/{id}/laporan, /banprog/{id}/termin2</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Role tambahan</strong> di User</td><td>Sub-role "Banprog" pada Operator Bidang — agar hanya bidang bertanda banprog yang bisa input pengajuan banprog</td><td><span class="badge badge-draft">Perlu dibuat</span></td></tr>
+                    <tr><td><strong>Notifikasi</strong></td><td>Pola notifikasi sama dengan PengajuanController: ke Verifikator, PPK, Op Pembayaran, Bendahara, dan Pemohon di setiap transisi status</td><td><span class="badge badge-t1proses">Reuse existing</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div class="pdf-footer">
+        <span>Workflow Banprog — simonKeu BPVP Surakarta</span>
+        <span>Halaman 3 dari 3</span>
+    </div>
+</div>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'base',
+        themeVariables: {
+            primaryColor: '#ede9fe',
+            primaryBorderColor: '#7c3aed',
+            primaryTextColor: '#3730a3',
+            lineColor: '#6b7280',
+            secondaryColor: '#fef3c7',
+            tertiaryColor: '#f0fdf4',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '9px'
+        },
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis',
+            padding: 4
+        },
+        stateDiagram: {
+            useMaxWidth: true
+        }
+    });
+</script>
+
+</body>
+</html>

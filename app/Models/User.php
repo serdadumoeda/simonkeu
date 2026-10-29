@@ -20,6 +20,7 @@ class User extends Authenticatable
         'role',
         'bidang',
         'no_wa',
+        'akses_banprog',
     ];
 
     protected $hidden = [
@@ -37,6 +38,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'akses_banprog' => 'boolean',
         ];
     }
 }

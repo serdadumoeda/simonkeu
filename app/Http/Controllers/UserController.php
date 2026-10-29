@@ -74,6 +74,7 @@ class UserController extends Controller
                 'role' => trim($request->role),
                 'bidang' => $bidangVal,
                 'no_wa' => trim($request->no_wa),
+                'akses_banprog' => trim($request->role) === 'Operator Bidang' && $request->boolean('akses_banprog'),
             ]);
 
             return redirect()->route('users.index')->with('success', 'Akun pengguna baru berhasil ditambahkan!');
@@ -120,6 +121,7 @@ class UserController extends Controller
             $user->role = trim($request->role);
             $user->bidang = $bidangVal;
             $user->no_wa = trim($request->no_wa);
+            $user->akses_banprog = $user->role === 'Operator Bidang' && $request->boolean('akses_banprog');
 
             if ($request->filled('password')) {
                 $user->password = Hash::make($request->password);

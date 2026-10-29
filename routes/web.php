@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PengajuanController;
 use App\Http\Controllers\AnggaranController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\BanprogController;
 
 // --- RUTE LOGIN ---
 Route::get('/', [AuthController::class, 'showLoginForm'])->name('login');
@@ -46,6 +47,20 @@ Route::middleware(['auth'])->group(function () {
     // --- FITUR ADMIN: EDIT TANGGAL & HAPUS PENGAJUAN ---
     Route::put('/pengajuan/{id}/edit-tanggal', [PengajuanController::class, 'adminEditDate'])->name('pengajuan.adminEditDate');
     Route::delete('/pengajuan/{id}', [PengajuanController::class, 'adminDelete'])->name('pengajuan.adminDelete');
+
+    // --- MODUL BANPROG LPKS (TERMIN 1 70% → LAPORAN → TERMIN 2 30%) ---
+    Route::get('/banprog', [BanprogController::class, 'index'])->name('banprog.index');
+    Route::get('/banprog/buat', [BanprogController::class, 'create'])->name('banprog.create');
+    Route::post('/banprog', [BanprogController::class, 'store'])->name('banprog.store');
+    Route::get('/banprog/{id}', [BanprogController::class, 'show'])->name('banprog.show');
+    Route::get('/banprog/{id}/cetak', [BanprogController::class, 'cetak'])->name('banprog.cetak');
+    Route::post('/banprog/{id}/ajukan', [BanprogController::class, 'ajukan'])->name('banprog.ajukan');
+    Route::post('/banprog/{id}/verifikasi', [BanprogController::class, 'verifikasi'])->name('banprog.verifikasi');
+    Route::post('/banprog/{id}/approval-ppk', [BanprogController::class, 'ppkApproval'])->name('banprog.ppkApproval');
+    Route::post('/banprog/{id}/spm', [BanprogController::class, 'inputSpm'])->name('banprog.inputSpm');
+    Route::post('/banprog/{id}/pencairan', [BanprogController::class, 'pencairan'])->name('banprog.pencairan');
+    Route::post('/banprog/{id}/laporan', [BanprogController::class, 'uploadLaporan'])->name('banprog.uploadLaporan');
+    Route::delete('/banprog/{id}', [BanprogController::class, 'destroy'])->name('banprog.destroy');
 
     // --- FITUR KETERSEDIAAN ANGGARAN ---
     Route::get('/anggaran', [AnggaranController::class, 'index'])->name('anggaran.index');

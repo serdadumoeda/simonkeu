@@ -90,6 +90,16 @@
                         </select>
                     </div>
 
+                    <div class="mb-3 p-2 px-3 rounded-3 border border-warning border-opacity-50 bg-warning bg-opacity-10">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" name="akses_banprog" value="1" id="akses_banprog_new" {{ old('akses_banprog') ? 'checked' : '' }}>
+                            <label class="form-check-label small fw-semibold text-dark" for="akses_banprog_new">
+                                <i class="bi bi-buildings me-1"></i> Sub-role Banprog
+                            </label>
+                        </div>
+                        <div class="form-text text-muted" style="font-size: 11px;">Khusus Operator Bidang pengelola Banprog LPKS.</div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Bidang Kerja / Instansi</label>
                         <select id="bidang_select" name="bidang" class="form-select rounded-3 border-light-subtle shadow-sm" required>
@@ -212,6 +222,9 @@
                                         <span class="badge {{ $roleColor }} px-2.5 py-1 rounded-pill small fw-semibold" style="font-size: 11px;">
                                             {{ $u->role }}
                                         </span>
+                                        @if($u->akses_banprog)
+                                            <span class="badge bg-warning text-dark px-2 py-1 rounded-pill ms-1" style="font-size: 10px;"><i class="bi bi-buildings me-1"></i>Banprog</span>
+                                        @endif
                                     </td>
                                     <td>
                                         <span class="badge bg-light text-secondary border px-2 py-1 rounded small">

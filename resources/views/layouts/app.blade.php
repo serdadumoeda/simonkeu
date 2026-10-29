@@ -543,6 +543,14 @@
                             <span class="sidebar-text">Daftar Pengajuan</span>
                         </a>
                     </li>
+                    @if(Auth::check() && (Auth::user()->role != 'Operator Bidang' || Auth::user()->akses_banprog))
+                    <li class="sidebar-item">
+                        <a class="sidebar-link {{ Route::is('banprog.*') ? 'active' : '' }}" href="{{ route('banprog.index') }}" title="Banprog LPKS">
+                            <i class="bi bi-buildings"></i>
+                            <span class="sidebar-text">Banprog LPKS</span>
+                        </a>
+                    </li>
+                    @endif
                 </ul>
 
                 @if(Auth::check() && Auth::user()->role == 'Admin Keuangan')

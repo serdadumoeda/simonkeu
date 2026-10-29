@@ -834,14 +834,14 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-secondary">Checklist Verifikasi Kelengkapan Dokumen Data Dukung ({{ $pengajuan->kategori_pengajuan }}):</label>
                         <div class="form-check mb-2">
-                            <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkAkun" required> 
+                            <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkAkun" data-label="Kesesuaian Nomor Akun DIPA & Pagu Anggaran"> 
                             <label class="form-check-label small fw-semibold text-dark" for="checkAkun">
                                 Kesesuaian Nomor Akun DIPA ({{ $pengajuan->no_akun }}) & Ketersediaan Pagu Anggaran
                             </label>
                         </div>
                         @foreach($dataDukungList as $cIdx => $cDoc)
                             <div class="form-check mb-2">
-                                <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkDoc_{{ $cIdx }}" required> 
+                                <input class="form-check-input border-secondary verify-checkbox" type="checkbox" id="checkDoc_{{ $cIdx }}" data-label="{{ $cDoc['nama_dokumen'] ?? '' }}"> 
                                 <label class="form-check-label small" for="checkDoc_{{ $cIdx }}">
                                     Kelengkapan & Kesesuaian Berkas: <strong>{{ $cDoc['nama_dokumen'] ?? '' }}</strong>
                                 </label>
@@ -850,7 +850,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Catatan Koreksi (Wajib diisi jika mengembalikan berkas/revisi)</label>
-                        <textarea name="catatan_koreksi" class="form-control" rows="2" placeholder="Tulis catatan perbaikan di sini jika ada berkas yang kurang/salah..."></textarea>
+                        <div class="form-text small mb-1" style="font-size:11px;"><i class="bi bi-info-circle"></i> Setujui: semua item wajib dicentang. Kembalikan: biarkan item yang belum sesuai tidak dicentang — otomatis tercatat di catatan.</div>
+                        <textarea name="catatan_koreksi" id="catatanKoreksi" class="form-control" rows="2" placeholder="Tulis catatan perbaikan di sini jika ada berkas yang kurang/salah..."></textarea>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" name="action" value="setuju" class="btn btn-success rounded-pill px-4 shadow-sm">
@@ -1502,6 +1503,35 @@
             const checkboxes = document.querySelectorAll('.verify-checkbox');
             checkboxes.forEach(cb => cb.checked = state);
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('verificationForm');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                const action = e.submitter ? e.submitter.value : '';
+                const boxes = [...form.querySelectorAll('.verify-checkbox')];
+                const unchecked = boxes.filter(cb => !cb.checked).map(cb => cb.dataset.label);
+                const catatan = document.getElementById('catatanKoreksi');
+
+                if (action === 'setuju' && unchecked.length) {
+                    e.preventDefault();
+                    alert('Untuk menyetujui, seluruh checklist wajib dicentang.\nBelum dicentang:\n- ' + unchecked.join('\n- '));
+                    return;
+                }
+                if (action === 'perbaiki') {
+                    if (!catatan.value.trim() && !unchecked.length) {
+                        e.preventDefault();
+                        alert('Isi catatan koreksi atau kosongkan centang pada item yang belum sesuai.');
+                        catatan.focus();
+                        return;
+                    }
+                    if (unchecked.length) {
+                        const daftar = 'Belum sesuai: ' + unchecked.join('; ') + '.';
+                        catatan.value = catatan.value.trim() ? catatan.value.trim() + '\n' + daftar : daftar;
+                    }
+                }
+            });
+        });
 
         function printBuktiPenyerahanVoucher() {
             window.open("{{ route('pengajuan.cetak_bukti', $pengajuan->id) }}", "_blank");
