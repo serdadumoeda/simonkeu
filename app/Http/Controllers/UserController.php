@@ -208,6 +208,9 @@ class UserController extends Controller
         // Switch login ke target user
         Auth::loginUsingId($targetUser->id);
 
+        // Regenerasi session agar ID session baru dan aman
+        session()->regenerate();
+
         return redirect()->route('dashboard')->with('success', 'MODE INTIP AKTIF: Anda sekarang mengakses sistem sebagai ' . $targetUser->name . ' (' . $targetUser->role . ').');
     }
 
@@ -217,6 +220,9 @@ class UserController extends Controller
             $adminId = session('impersonator_id');
             session()->forget('impersonator_id');
             Auth::loginUsingId($adminId);
+
+            // Regenerasi session agar kembali bersih ke admin
+            session()->regenerate();
 
             return redirect()->route('users.index')->with('success', 'MODE INTIP SELESAI: Anda telah kembali ke akun Admin Super.');
         }

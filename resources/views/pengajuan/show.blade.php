@@ -672,6 +672,7 @@
                 'LS Non Kontrak' => ['Rincian POK', 'Npwp', 'Rekening', 'Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
                 'LS banyak penerima' => ['SPTB', 'SK', 'Rincian POK', 'Pendaftaran suplier', 'Rekap pengajuan'],
                 'LS Bendahara' => ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran'],
+                'LS Banprog' => ['PKS', 'SK Penetapan', 'Kwitansi', 'SPTJM', 'Rincian POK'],
             ];
             $dataDukungList = json_decode($pengajuan->data_dukung_json, true) ?? [];
             if (empty($dataDukungList) && isset($dataDukungMap[$pengajuan->kategori_pengajuan])) {

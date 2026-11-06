@@ -1056,4 +1056,101 @@ class UserManagementAndSecurityTest extends TestCase
         $response->assertSee('Doni UPTD Banda Aceh');
         $response->assertDontSee('Lina Payment');
     }
+
+    /**
+     * Test admin can impersonate and stop impersonate without 419 CSRF errors (GET and POST supported).
+     */
+    public function test_impersonate_and_stop_impersonate_workflow(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin Super',
+            'email' => 'admin_super@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Admin Keuangan',
+            'bidang' => 'Keuangan',
+        ]);
+
+        $target = User::create([
+            'name' => 'Operator Sub-Bidang',
+            'email' => 'target@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        // 1. Non-admin cannot impersonate
+        $this->actingAs($target);
+        $response = $this->get(route('users.impersonate', $admin->id));
+        $response->assertStatus(403);
+
+        // 2. Admin can impersonate via POST even without CSRF token (excluded from CSRF verify)
+        $this->actingAs($admin);
+        $response = $this->post(route('users.impersonate', $target->id));
+        $response->assertRedirect(route('dashboard'));
+        $this->assertEquals($target->id, auth()->id());
+        $this->assertEquals($admin->id, session('impersonator_id'));
+
+        // 3. User can stop impersonating via GET link
+        $response = $this->get(route('users.stopImpersonate'));
+        $response->assertRedirect(route('users.index'));
+        $this->assertEquals($admin->id, auth()->id());
+        $this->assertFalse(session()->has('impersonator_id'));
+
+        // 4. Admin can also impersonate via GET
+        $response = $this->get(route('users.impersonate', $target->id));
+        $response->assertRedirect(route('dashboard'));
+        $this->assertEquals($target->id, auth()->id());
+        $this->assertEquals($admin->id, session('impersonator_id'));
+
+        // 5. User can stop impersonating via POST without CSRF token
+        $response = $this->post(route('users.stopImpersonate'));
+        $response->assertRedirect(route('users.index'));
+        $this->assertEquals($admin->id, auth()->id());
+    }
+
+    /**
+     * Test creating a pengajuan with kategori LS Banprog.
+     */
+    public function test_can_create_pengajuan_with_kategori_ls_banprog(): void
+    {
+        $operator = User::create([
+            'name' => 'Operator Penyelenggara',
+            'email' => 'operator_peny@bpvp.go.id',
+            'password' => bcrypt('password'),
+            'role' => 'Operator Bidang',
+            'bidang' => 'Penyelenggara',
+        ]);
+
+        $this->actingAs($operator);
+
+        $postData = [
+            'no_pengajuan' => 'BP-TEST-001',
+            'kategori_pengajuan' => 'LS Banprog',
+            'nama_kegiatan' => 'Banprog Pelatihan Kejuruan Las LPKS Maju',
+            'no_akun' => '526111',
+            'jenis_belanja' => 'Bantuan Pemerintah',
+            'nilai_bruto' => 50000000,
+            'potongan_pajak' => 0,
+            'nilai_neto' => 50000000,
+            'link_google_drive' => 'https://drive.google.com/drive/folders/test-banprog',
+            'action' => 'ajukan',
+            'data_dukung' => [
+                'PKS' => 'https://drive.google.com/file/d/pks',
+                'SK Penetapan' => 'https://drive.google.com/file/d/sk',
+                'Kwitansi' => 'https://drive.google.com/file/d/kwitansi',
+                'SPTJM' => 'https://drive.google.com/file/d/sptjm',
+                'Rincian POK' => 'https://drive.google.com/file/d/pok',
+            ],
+        ];
+
+        $response = $this->post(route('pengajuan.store'), $postData);
+        $response->assertRedirect(route('pengajuan.index'));
+
+        $this->assertDatabaseHas('pengajuan_ls', [
+            'no_pengajuan' => 'BP-TEST-001',
+            'kategori_pengajuan' => 'LS Banprog',
+            'nama_kegiatan' => 'Banprog Pelatihan Kejuruan Las LPKS Maju',
+            'status' => 'Menunggu Verifikasi',
+        ]);
+    }
 }

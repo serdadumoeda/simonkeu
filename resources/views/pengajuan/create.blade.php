@@ -59,6 +59,7 @@
                             <option value="LS Non Kontrak" {{ old('kategori_pengajuan') == 'LS Non Kontrak' ? 'selected' : '' }}>LS Non Kontrak</option>
                             <option value="LS banyak penerima" {{ old('kategori_pengajuan') == 'LS banyak penerima' ? 'selected' : '' }}>LS banyak penerima (Uang Saku)</option>
                             <option value="LS Bendahara" {{ old('kategori_pengajuan') == 'LS Bendahara' ? 'selected' : '' }}>LS Bendahara</option>
+                            <option value="LS Banprog" {{ old('kategori_pengajuan') == 'LS Banprog' ? 'selected' : '' }}>LS Banprog</option>
                         </select>
                     </div>
                 </div>
@@ -160,18 +161,12 @@
                 <div class="form-check mb-2">
                     <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_1">
                     <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_1">
-                        Nomor Akun DIPA dan jenis belanja sudah dipastikan sesuai dengan Rencana Anggaran (POK).
+                        Link Google Drive sudah diatur ke izin akses terbuka (Siapa saja yang memiliki link / Kemenaker).
                     </label>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_2">
                     <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_2">
-                        Link Google Drive sudah diatur ke izin akses terbuka (Siapa saja yang memiliki link / Kemenaker).
-                    </label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input border-secondary" type="checkbox" id="chk_presubmit_3">
-                    <label class="form-check-label small fw-semibold text-dark" for="chk_presubmit_3">
                         Seluruh berkas data dukung wajib (SPTB, Kwitansi/Kwitansi Pembayaran, Rincian POK, dll) telah ter-upload lengkap.
                     </label>
                 </div>
@@ -195,7 +190,8 @@
             'LS Kontrak': ['Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
             'LS Non Kontrak': ['Rincian POK', 'Npwp', 'Rekening', 'Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
             'LS banyak penerima': ['SPTB', 'SK', 'Rincian POK', 'Pendaftaran suplier', 'Rekap pengajuan'],
-            'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran']
+            'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran'],
+            'LS Banprog': ['PKS', 'SK Penetapan', 'Kwitansi', 'SPTJM', 'Rincian POK']
         };
 
         function formatRupiah(angka) {

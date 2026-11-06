@@ -11,7 +11,8 @@ var Utils = {
     'LS Kontraktual': ['Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
     'LS Non Kontraktual': ['Rincian POK', 'Npwp', 'Rekening', 'Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
     'LS banyak penerima': ['SPTB', 'SK', 'Rincian POK', 'Pendaftaran suplier', 'Rekap pengajuan'],
-    'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran']
+    'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran'],
+    'LS Banprog': ['PKS', 'SK Penetapan', 'Kwitansi', 'SPTJM', 'Rincian POK']
   },
 
   /**

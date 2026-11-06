@@ -189,7 +189,7 @@ class PengajuanController extends Controller
             'potongan_pajak' => 'nullable|numeric',
             'nilai_neto' => 'required|numeric',
             'link_google_drive' => 'required|url',
-            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara',
+            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara,LS Banprog',
         ]);
 
         $potonganPajak = $request->filled('potongan_pajak') ? $request->potongan_pajak : 0;
@@ -315,7 +315,7 @@ class PengajuanController extends Controller
             'no_pengajuan' => 'required|string|unique:pengajuan_ls,no_pengajuan',
             'tgl_pengajuan' => 'required|date',
             'bidang' => 'required|string',
-            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara',
+            'kategori_pengajuan' => 'required|string|in:GU/UP/TUP,LS Kontrak,LS Non Kontrak,LS banyak penerima,LS Bendahara,LS Banprog',
             'nama_kegiatan' => 'required|string',
             'no_akun' => 'required|string',
             'jenis_belanja' => 'required|string',

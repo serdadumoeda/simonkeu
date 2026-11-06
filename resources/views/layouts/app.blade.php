@@ -698,12 +698,9 @@
                                 </span>
                             </div>
                         </div>
-                        <form action="{{ route('users.stopImpersonate') }}" method="POST">
-                            @csrf
-                            <button type="submit" class="btn btn-dark btn-sm rounded-pill px-4 py-2 fw-semibold shadow-sm text-nowrap">
-                                <i class="bi bi-box-arrow-left me-1"></i> Kembali ke Akun Admin Super
-                            </button>
-                        </form>
+                        <a href="{{ route('users.stopImpersonate') }}" class="btn btn-dark btn-sm rounded-pill px-4 py-2 fw-semibold shadow-sm text-nowrap">
+                            <i class="bi bi-box-arrow-left me-1"></i> Kembali ke Akun Admin Super
+                        </a>
                     </div>
                 @endif
                 @yield('content')

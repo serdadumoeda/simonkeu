@@ -86,6 +86,7 @@
                             <option value="LS Non Kontrak" {{ old('kategori_pengajuan') == 'LS Non Kontrak' ? 'selected' : '' }}>LS Non Kontrak</option>
                             <option value="LS banyak penerima" {{ old('kategori_pengajuan') == 'LS banyak penerima' ? 'selected' : '' }}>LS banyak penerima (Uang Saku)</option>
                             <option value="LS Bendahara" {{ old('kategori_pengajuan') == 'LS Bendahara' ? 'selected' : '' }}>LS Bendahara</option>
+                            <option value="LS Banprog" {{ old('kategori_pengajuan') == 'LS Banprog' ? 'selected' : '' }}>LS Banprog</option>
                         </select>
                     </div>
                 </div>
@@ -287,7 +288,8 @@
             'LS Kontrak': ['Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
             'LS Non Kontrak': ['Rincian POK', 'Npwp', 'Rekening', 'Surat pesanan', 'BA Serah Terima', 'Permintaan Pembayaran', 'BA Pembayaran', 'Kwitansi', 'SPTB'],
             'LS banyak penerima': ['SPTB', 'SK', 'Rincian POK', 'Pendaftaran suplier', 'Rekap pengajuan'],
-            'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran']
+            'LS Bendahara': ['SPTB', 'SK/SPT', 'Rincian POK', 'Daftar pembayaran'],
+            'LS Banprog': ['PKS', 'SK Penetapan', 'Kwitansi', 'SPTJM', 'Rincian POK']
         };
 
         function formatRupiah(angka) {

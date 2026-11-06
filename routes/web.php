@@ -77,8 +77,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
     Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
-    Route::post('/users/{id}/impersonate', [UserController::class, 'impersonate'])->name('users.impersonate');
-    Route::post('/stop-impersonate', [UserController::class, 'stopImpersonate'])->name('users.stopImpersonate');
+    Route::match(['get', 'post'], '/users/{id}/impersonate', [UserController::class, 'impersonate'])->name('users.impersonate');
+    Route::match(['get', 'post'], '/stop-impersonate', [UserController::class, 'stopImpersonate'])->name('users.stopImpersonate');
     Route::post('/notifications/{id}/read', [DashboardController::class, 'markNotificationAsRead'])->name('notifications.read');
 });
 
