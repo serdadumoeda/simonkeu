@@ -18,7 +18,7 @@
             ['Verifikasi T1', 'bi-clipboard-check', [B::S_VERIF_T1]],
             ['PPK T1', 'bi-person-check', [B::S_PPK_T1]],
             ['SPM/SP2D T1', 'bi-bank', [B::S_SPM_T1, B::S_SP2D_T1]],
-            ['Laporan LPKS', 'bi-journal-text', [B::S_LAPORAN]],
+            ['Laporan LPKS/BLKK', 'bi-journal-text', [B::S_LAPORAN]],
             ['Verifikasi T2', 'bi-clipboard2-check', [B::S_VERIF_T2]],
             ['PPK T2', 'bi-person-check-fill', [B::S_PPK_T2]],
             ['SPM/SP2D T2', 'bi-bank2', [B::S_SPM_T2, B::S_SP2D_T2]],
@@ -88,12 +88,12 @@
         {{-- KIRI: DATA --}}
         <div class="col-lg-7">
             <div class="card card-custom p-4 bg-white mb-4">
-                <div class="bp-section-title mb-3">Identitas LPKS</div>
+                <div class="bp-section-title mb-3">Identitas LPKS / BLKK</div>
                 <div class="row g-3 small">
                     @foreach([
                         'Kabupaten / Kota' => $b->kabupaten_kota,
                         'Kejuruan' => $b->kejuruan,
-                        'Kepala LPKS' => $b->nama_kepala_lpks,
+                        'Kepala LPKS / BLKK' => $b->nama_kepala_lpks,
                         'No. HP Kepala' => $b->no_hp_kepala_lpks,
                         'No. SK Penetapan' => $b->no_sk_penetapan ?: '—',
                         'Rekening' => trim(($b->bank_lpks ?? '') . ' ' . ($b->rekening_lpks ?? '')) ?: '—',
@@ -215,7 +215,7 @@
                     @php $adaAksi = true; $t = $b->status === B::S_PPK_T2 ? 2 : 1; @endphp
                     <div class="bg-light rounded-3 p-3 small mb-3">
                         <div class="fw-bold mb-1">Ringkasan Persetujuan Termin {{ $t }}</div>
-                        LPKS: <strong>{{ $b->nama_lpks }}</strong> ({{ $b->kejuruan }})<br>
+                        LPKS / BLKK: <strong>{{ $b->nama_lpks }}</strong> ({{ $b->kejuruan }})<br>
                         Nilai Termin {{ $t }}: <strong>{{ $rp($t === 1 ? $b->nilai_termin_1 : $b->nilai_termin_2) }}</strong><br>
                         Checklist: {{ count($t === 1 ? $cekT1 : $cekT2) }}/{{ count($t === 1 ? B::CHECKLIST_TERMIN1 : B::CHECKLIST_TERMIN2) }} lengkap
                     </div>

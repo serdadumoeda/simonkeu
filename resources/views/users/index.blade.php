@@ -97,7 +97,7 @@
                                 <i class="bi bi-buildings me-1"></i> Sub-role Banprog
                             </label>
                         </div>
-                        <div class="form-text text-muted" style="font-size: 11px;">Khusus Operator Bidang pengelola Banprog LPKS.</div>
+                        <div class="form-text text-muted" style="font-size: 11px;">Khusus Operator Bidang pengelola Banprog LPKS / BLKK.</div>
                     </div>
 
                     <div class="mb-3">

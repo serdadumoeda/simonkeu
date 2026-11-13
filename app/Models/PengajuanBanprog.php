@@ -44,7 +44,7 @@ class PengajuanBanprog extends Model
     ];
 
     public const CHECKLIST_TERMIN1 = [
-        1 => 'Surat Permohonan Pencairan Bantuan kepada PPK (ditandatangani Kepala LPKS)',
+        1 => 'Surat Permohonan Pencairan Bantuan kepada PPK (ditandatangani Kepala LPKS / BLKK)',
         2 => 'SK Penetapan Penerima Banprog',
         3 => 'Program Pelatihan & Kurikulum',
         4 => 'PKS (Perjanjian Kerja Sama)',

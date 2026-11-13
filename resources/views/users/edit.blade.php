@@ -71,7 +71,7 @@
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" name="akses_banprog" value="1" id="akses_banprog" {{ old('akses_banprog', $user->akses_banprog) ? 'checked' : '' }}>
                             <label class="form-check-label small fw-semibold text-dark" for="akses_banprog">
-                                <i class="bi bi-buildings me-1"></i> Sub-role Banprog (Pemohon Banprog LPKS)
+                                <i class="bi bi-buildings me-1"></i> Sub-role Banprog (Pemohon Banprog LPKS / BLKK)
                             </label>
                         </div>
                         <div class="form-text text-muted" style="font-size: 11px;">Hanya berlaku untuk role Operator Bidang.</div>

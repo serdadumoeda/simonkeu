@@ -1,7 +1,7 @@
 {{-- File: resources/views/banprog/index.blade.php --}}
 @extends('layouts.app')
 
-@section('title', 'Banprog LPKS')
+@section('title', 'Banprog LPKS & BLKK')
 
 @section('content')
     @include('banprog._style')
@@ -10,7 +10,7 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 position-relative" style="z-index:1">
             <div>
                 <span class="badge bg-warning text-dark rounded-pill px-3 mb-2"><i class="bi bi-buildings me-1"></i> Skema Banprog</span>
-                <h4 class="fw-bold mb-1 text-white">Bantuan Program LPKS Binaan</h4>
+                <h4 class="fw-bold mb-1 text-white">Bantuan Program LPKS & BLKK Binaan</h4>
                 <p class="mb-0 small text-white-50">Pencairan 2 termin: Termin 1 (70%) → Laporan Pelaksanaan → Termin 2 (30%)</p>
             </div>
             @if(Auth::user()->role == 'Operator Bidang' && Auth::user()->akses_banprog)
@@ -57,7 +57,7 @@
 
         <form method="GET" class="row g-2 mb-3 bg-light p-3 rounded-3">
             <div class="col-md-6">
-                <input type="text" name="search" id="search-banprog" value="{{ request('search') }}" class="form-control form-control-sm border-0 shadow-sm" placeholder="Cari no. banprog, nama LPKS, kab/kota, kejuruan...">
+                <input type="text" name="search" id="search-banprog" value="{{ request('search') }}" class="form-control form-control-sm border-0 shadow-sm" placeholder="Cari no. banprog, nama LPKS/BLKK, kab/kota, kejuruan...">
             </div>
             <div class="col-md-4">
                 <select name="status" id="filter-status-banprog" class="form-select form-select-sm border-0 shadow-sm">
@@ -79,7 +79,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark">
                     <tr>
-                        <th class="ps-3">No. / LPKS</th>
+                        <th class="ps-3">No. / LPKS & BLKK</th>
                         <th>Kejuruan</th>
                         <th class="text-end">Nilai Banprog</th>
                         <th style="min-width:200px">Status & Progres</th>

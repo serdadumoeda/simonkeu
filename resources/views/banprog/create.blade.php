@@ -24,18 +24,18 @@
         <div class="row g-4">
             <div class="col-lg-7">
                 <div class="card card-custom p-4 bg-white mb-4">
-                    <div class="bp-section-title mb-3"><i class="bi bi-building me-1"></i> Identitas LPKS</div>
+                    <div class="bp-section-title mb-3"><i class="bi bi-building me-1"></i> Identitas LPKS / BLKK</div>
                     <div class="row g-3">
-                        <div class="col-md-6"><label class="form-label small fw-semibold">Nama LPKS *</label><input name="nama_lpks" id="nama_lpks" class="form-control" value="{{ old('nama_lpks') }}" required></div>
+                        <div class="col-md-6"><label class="form-label small fw-semibold">Nama LPKS / BLKK *</label><input name="nama_lpks" id="nama_lpks" class="form-control" value="{{ old('nama_lpks') }}" required></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">Kabupaten / Kota *</label><input name="kabupaten_kota" id="kabupaten_kota" class="form-control" value="{{ old('kabupaten_kota') }}" required></div>
-                        <div class="col-md-6"><label class="form-label small fw-semibold">Nama Kepala LPKS *</label><input name="nama_kepala_lpks" id="nama_kepala_lpks" class="form-control" value="{{ old('nama_kepala_lpks') }}" required></div>
-                        <div class="col-md-6"><label class="form-label small fw-semibold">No. HP Kepala LPKS *</label><input name="no_hp_kepala_lpks" id="no_hp_kepala_lpks" class="form-control" value="{{ old('no_hp_kepala_lpks') }}" placeholder="08xxxxxxxxxx" required></div>
+                        <div class="col-md-6"><label class="form-label small fw-semibold">Nama Kepala LPKS / BLKK *</label><input name="nama_kepala_lpks" id="nama_kepala_lpks" class="form-control" value="{{ old('nama_kepala_lpks') }}" required></div>
+                        <div class="col-md-6"><label class="form-label small fw-semibold">No. HP Kepala LPKS / BLKK *</label><input name="no_hp_kepala_lpks" id="no_hp_kepala_lpks" class="form-control" value="{{ old('no_hp_kepala_lpks') }}" placeholder="08xxxxxxxxxx" required></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">Kejuruan *</label><input name="kejuruan" id="kejuruan" class="form-control" value="{{ old('kejuruan') }}" placeholder="Contoh: Menjahit, Las, TIK" required></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">No. SK Penetapan</label><input name="no_sk_penetapan" id="no_sk_penetapan" class="form-control" value="{{ old('no_sk_penetapan') }}"></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">Tgl Pelaksanaan Mulai</label><input type="date" name="tgl_pelaksanaan_mulai" id="tgl_mulai" class="form-control" value="{{ old('tgl_pelaksanaan_mulai') }}"></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">Tgl Pelaksanaan Selesai</label><input type="date" name="tgl_pelaksanaan_selesai" id="tgl_selesai" class="form-control" value="{{ old('tgl_pelaksanaan_selesai') }}"></div>
                         <div class="col-md-6"><label class="form-label small fw-semibold">Bank</label><input name="bank_lpks" id="bank_lpks" class="form-control" value="{{ old('bank_lpks') }}"></div>
-                        <div class="col-md-6"><label class="form-label small fw-semibold">No. Rekening LPKS</label><input name="rekening_lpks" id="rekening_lpks" class="form-control" value="{{ old('rekening_lpks') }}"></div>
+                        <div class="col-md-6"><label class="form-label small fw-semibold">No. Rekening LPKS / BLKK</label><input name="rekening_lpks" id="rekening_lpks" class="form-control" value="{{ old('rekening_lpks') }}"></div>
                     </div>
                 </div>
 

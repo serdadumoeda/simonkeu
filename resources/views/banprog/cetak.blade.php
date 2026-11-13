@@ -29,13 +29,13 @@
 <body>
     <div class="no-print"><button onclick="window.print()">🖨 Cetak</button></div>
     <h3>CHECKLIST PENGAJUAN TERMIN {{ $termin }}</h3>
-    <div class="sub">BANPROG LPKS BINAAN BPVP SURAKARTA</div>
+    <div class="sub">BANPROG LPKS & BLKK BINAAN BPVP SURAKARTA</div>
 
     <table class="ident">
-        <tr><td width="35%">Nama LPKS</td><td width="2%">:</td><td>{{ $b->nama_lpks }}</td></tr>
+        <tr><td width="35%">Nama LPKS / BLKK</td><td width="2%">:</td><td>{{ $b->nama_lpks }}</td></tr>
         <tr><td>Kabupaten/Kota</td><td>:</td><td>{{ $b->kabupaten_kota }}</td></tr>
-        <tr><td>Nama Kepala LPKS</td><td>:</td><td>{{ $b->nama_kepala_lpks }}</td></tr>
-        <tr><td>No HP Kepala LPKS</td><td>:</td><td>{{ $b->no_hp_kepala_lpks }}</td></tr>
+        <tr><td>Nama Kepala LPKS / BLKK</td><td>:</td><td>{{ $b->nama_kepala_lpks }}</td></tr>
+        <tr><td>No HP Kepala LPKS / BLKK</td><td>:</td><td>{{ $b->no_hp_kepala_lpks }}</td></tr>
         <tr><td>Kejuruan</td><td>:</td><td>{{ $b->kejuruan }}</td></tr>
         <tr><td>Tanggal Pelaksanaan Pelatihan</td><td>:</td><td>{{ optional($b->tgl_pelaksanaan_mulai)->format('d/m/Y') }} @if($b->tgl_pelaksanaan_selesai) s.d. {{ $b->tgl_pelaksanaan_selesai->format('d/m/Y') }} @endif</td></tr>
         <tr><td>Tanggal Pengajuan Termin {{ $termin }}</td><td>:</td><td>{{ optional($tglPengajuan)->format('d/m/Y') }}</td></tr>

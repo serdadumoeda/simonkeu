@@ -545,9 +545,9 @@
                     </li>
                     @if(Auth::check() && (Auth::user()->role != 'Operator Bidang' || Auth::user()->akses_banprog))
                     <li class="sidebar-item">
-                        <a class="sidebar-link {{ Route::is('banprog.*') ? 'active' : '' }}" href="{{ route('banprog.index') }}" title="Banprog LPKS">
+                        <a class="sidebar-link {{ Route::is('banprog.*') ? 'active' : '' }}" href="{{ route('banprog.index') }}" title="Banprog LPKS/BLKK">
                             <i class="bi bi-buildings"></i>
-                            <span class="sidebar-text">Banprog LPKS</span>
+                            <span class="sidebar-text">Banprog LPKS/BLKK</span>
                         </a>
                     </li>
                     @endif
