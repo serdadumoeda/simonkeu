@@ -34,10 +34,7 @@
     <table class="ident">
         <tr><td width="35%">Nama LPKS / BLKK</td><td width="2%">:</td><td>{{ $b->nama_lpks }}</td></tr>
         <tr><td>Kabupaten/Kota</td><td>:</td><td>{{ $b->kabupaten_kota }}</td></tr>
-        @if($b->nama_kepala_lpks)<tr><td>Nama Kepala LPKS / BLKK</td><td>:</td><td>{{ $b->nama_kepala_lpks }}</td></tr>@endif
-        @if($b->no_hp_kepala_lpks)<tr><td>No HP Kepala LPKS / BLKK</td><td>:</td><td>{{ $b->no_hp_kepala_lpks }}</td></tr>@endif
         <tr><td>Kejuruan</td><td>:</td><td>{{ $b->kejuruan }}</td></tr>
-        @if($b->tgl_pelaksanaan_mulai)<tr><td>Tanggal Pelaksanaan Pelatihan</td><td>:</td><td>{{ $b->tgl_pelaksanaan_mulai->format('d/m/Y') }} @if($b->tgl_pelaksanaan_selesai) s.d. {{ $b->tgl_pelaksanaan_selesai->format('d/m/Y') }} @endif</td></tr>@endif
         <tr><td>Tanggal Pengajuan Termin {{ $termin }}</td><td>:</td><td>{{ optional($tglPengajuan)->format('d/m/Y') }}</td></tr>
         <tr><td>Nilai Pengajuan Termin {{ $termin }}</td><td>:</td><td>Rp {{ number_format($b->nilai_banprog, 0, ',', '.') }}</td></tr>
     </table>

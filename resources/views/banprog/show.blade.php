@@ -141,11 +141,6 @@
                         'Rekening' => trim(($b->bank_lpks ?? '') . ' ' . ($b->rekening_lpks ?? '')) ?: '—',
                         'Bidang Pengelola' => ($b->bidang ?? '—') . ' (' . ($b->user->name ?? '-') . ')',
                     ];
-                    if ($b->nama_kepala_lpks) $identitas['Kepala LPKS / BLKK'] = $b->nama_kepala_lpks;
-                    if ($b->no_hp_kepala_lpks) $identitas['No. HP Kepala'] = $b->no_hp_kepala_lpks;
-                    if ($b->tgl_pelaksanaan_mulai) {
-                        $identitas['Pelaksanaan'] = $b->tgl_pelaksanaan_mulai->format('d/m/Y') . ($b->tgl_pelaksanaan_selesai ? ' s.d. ' . $b->tgl_pelaksanaan_selesai->format('d/m/Y') : '');
-                    }
                 @endphp
                 <div class="row g-3 small">
                     @foreach($identitas as $k => $v)
