@@ -122,31 +122,52 @@ class BanprogController extends Controller
             'bank_lpks' => 'nullable|string|max:100',
             'tgl_pelaksanaan_mulai' => 'nullable|date',
             'tgl_pelaksanaan_selesai' => 'nullable|date|after_or_equal:tgl_pelaksanaan_mulai',
+            'kategori_pengajuan' => 'nullable|string|in:Termin I,Termin II',
             'nilai_banprog' => 'required|numeric|min:1',
-            'link_drive_termin1' => 'required|url',
+            'nilai_termin_1' => 'nullable|numeric|min:0',
+            'nilai_termin_2' => 'nullable|numeric|min:0',
+            'link_drive_termin1' => 'required_without:link_drive_laporan|nullable|url',
+            'link_drive_laporan' => 'nullable|url',
         ]);
 
         $total = (float) $data['nilai_banprog'];
-        $data['nilai_termin_1'] = round($total * 0.7, 2);
-        $data['nilai_termin_2'] = $total - $data['nilai_termin_1'];
+        $t1 = $request->filled('nilai_termin_1') ? (float) $request->nilai_termin_1 : round($total * 0.7, 2);
+        $t2 = $request->filled('nilai_termin_2') ? (float) $request->nilai_termin_2 : max(0, $total - $t1);
+        $data['nilai_termin_1'] = $t1;
+        $data['nilai_termin_2'] = $t2;
+
+        $kategori = $request->input('kategori_pengajuan') === B::KATEGORI_TERMIN2 ? B::KATEGORI_TERMIN2 : B::KATEGORI_TERMIN1;
+        $isT2 = $kategori === B::KATEGORI_TERMIN2;
+
+        $data['kategori_pengajuan'] = $kategori;
         $data['no_banprog'] = $this->generateNo();
         $data['user_id'] = $user->id;
         $data['bidang'] = $user->bidang;
-        $data['checklist_termin1_json'] = array_map('intval', array_keys((array) $request->input('dok', [])));
 
+        $checklist = array_map('intval', array_keys((array) $request->input('dok', [])));
         $ajukan = $request->input('action') !== 'draft';
-        $data['status'] = $ajukan ? B::S_VERIF_T1 : B::S_DRAFT;
-        if ($ajukan) $data['tgl_pengajuan_termin1'] = now();
+
+        if ($isT2) {
+            $data['link_drive_laporan'] = $request->input('link_drive_laporan') ?: $request->input('link_drive_termin1');
+            unset($data['link_drive_termin1']);
+            $data['checklist_termin2_json'] = $checklist;
+            $data['status'] = $ajukan ? B::S_VERIF_T2 : B::S_DRAFT;
+            if ($ajukan) $data['tgl_pengajuan_termin2'] = now();
+        } else {
+            $data['checklist_termin1_json'] = $checklist;
+            $data['status'] = $ajukan ? B::S_VERIF_T1 : B::S_DRAFT;
+            if ($ajukan) $data['tgl_pengajuan_termin1'] = now();
+        }
 
         $b = new B($data);
-        $b->addHistori($ajukan ? 'Mengajukan Termin 1' : 'Menyimpan Draft');
+        $b->addHistori($ajukan ? "Mengajukan {$kategori}" : "Menyimpan Draft {$kategori}");
         $b->save();
 
         if ($ajukan) {
-            $this->notifyRole('Verifikator Keuangan', 'Banprog Baru Menunggu Verifikasi', "Banprog {$b->no_banprog} ({$b->nama_lpks}) menunggu verifikasi Termin 1.");
+            $this->notifyRole('Verifikator Keuangan', 'Banprog Baru Menunggu Verifikasi', "Banprog {$b->no_banprog} ({$b->nama_lpks}) menunggu verifikasi {$kategori}.");
         }
 
-        return redirect()->route('banprog.show', $b->id)->with('success', $ajukan ? 'Pengajuan Banprog Termin 1 berhasil diajukan.' : 'Draft Banprog berhasil disimpan.');
+        return redirect()->route('banprog.show', $b->id)->with('success', $ajukan ? "Pengajuan Banprog {$kategori} berhasil diajukan." : 'Draft Banprog berhasil disimpan.');
     }
 
     // 4. DETAIL
@@ -169,8 +190,8 @@ class BanprogController extends Controller
 
         $request->validate(['link_drive' => 'nullable|url']);
 
-        if ($b->tgl_cair_t1) {
-            // revisi di tahap laporan termin 2
+        if ($b->termin_aktif === 2) {
+            // pengajuan atau revisi di tahap termin 2
             if ($request->filled('link_drive')) $b->link_drive_laporan = $request->link_drive;
             $b->status = B::S_VERIF_T2;
             $b->tgl_pengajuan_termin2 = now();

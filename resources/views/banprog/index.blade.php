@@ -91,6 +91,7 @@
                         <tr>
                             <td class="ps-3 py-3">
                                 <span class="badge bg-light text-secondary border mb-1">{{ $b->no_banprog }}</span>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 mb-1">{{ $b->kategori_pengajuan ?? 'Termin I' }}</span>
                                 <strong class="d-block text-dark">{{ $b->nama_lpks }}</strong>
                                 <span class="small text-muted"><i class="bi bi-geo-alt"></i> {{ $b->kabupaten_kota }} · {{ $b->bidang }}</span>
                             </td>

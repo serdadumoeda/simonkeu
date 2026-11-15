@@ -26,7 +26,7 @@
         ];
         $curIdx = 0;
         foreach ($steps as $i => $s) { if (in_array($b->status, $s[2])) $curIdx = $i; }
-        if ($b->status === B::S_PERBAIKAN) $curIdx = $b->tgl_cair_t1 ? 4 : 0;
+        if ($b->status === B::S_PERBAIKAN) $curIdx = $b->termin_aktif === 2 ? 4 : 0;
         $isT2 = in_array($b->status, [B::S_VERIF_T2]);
         $cekT1 = $b->checklist_termin1_json ?? [];
         $cekT2 = $b->checklist_termin2_json ?? [];
@@ -37,11 +37,12 @@
             <a href="{{ route('banprog.index') }}" class="small text-decoration-none"><i class="bi bi-arrow-left"></i> Daftar Banprog</a>
             <h4 class="fw-bold mb-0 mt-1">{{ $b->nama_lpks }}</h4>
             <span class="badge bg-light text-dark border">{{ $b->no_banprog }}</span>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1">{{ $b->kategori_pengajuan ?? 'Termin I' }}</span>
             <span class="badge {{ $b->badge_class }} rounded-pill px-3 py-1">{{ $b->status }}</span>
         </div>
         <div class="d-flex gap-2">
             <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 1]) }}" target="_blank" class="btn btn-outline-dark btn-sm rounded-pill"><i class="bi bi-printer"></i> Checklist T1</a>
-            @if($b->tgl_cair_t1)
+            @if($b->termin_aktif === 2)
                 <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 2]) }}" target="_blank" class="btn btn-outline-dark btn-sm rounded-pill"><i class="bi bi-printer"></i> Checklist T2</a>
             @endif
             @if($isAdmin || ($isPemohon && $b->status === B::S_DRAFT))
@@ -134,7 +135,7 @@
                         <li class="mb-1"><i class="bi {{ in_array($no, $cekT1) ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' }} me-1"></i>{{ $no }}. {{ $ur }}</li>
                     @endforeach
                 </ul>
-                @if($b->tgl_cair_t1)
+                @if($b->termin_aktif === 2)
                     <div class="small fw-semibold mb-2">Checklist Laporan Termin 2 ({{ count($cekT2) }}/{{ count(B::CHECKLIST_TERMIN2) }})</div>
                     <ul class="list-unstyled small mb-0">
                         @foreach(B::CHECKLIST_TERMIN2 as $no => $ur)
@@ -156,10 +157,10 @@
                     @php $adaAksi = true; @endphp
                     <form action="{{ route('banprog.ajukan', $b->id) }}" method="POST">
                         @csrf
-                        <label class="form-label small fw-semibold">Link Google Drive {{ $b->tgl_cair_t1 ? 'Laporan' : 'Dokumen' }} (perbarui bila perlu)</label>
-                        <input type="url" name="link_drive" class="form-control form-control-sm mb-2" value="{{ $b->tgl_cair_t1 ? $b->link_drive_laporan : $b->link_drive_termin1 }}">
+                        <label class="form-label small fw-semibold">Link Google Drive {{ $b->termin_aktif === 2 ? 'Laporan' : 'Dokumen' }} (perbarui bila perlu)</label>
+                        <input type="url" name="link_drive" class="form-control form-control-sm mb-2" value="{{ $b->termin_aktif === 2 ? $b->link_drive_laporan : $b->link_drive_termin1 }}">
                         <textarea name="catatan" class="form-control form-control-sm mb-2" rows="2" placeholder="Catatan perbaikan (opsional)"></textarea>
-                        <button class="btn btn-warning w-100 rounded-pill fw-semibold" id="btn-ajukan"><i class="bi bi-send"></i> {{ $b->status === B::S_DRAFT ? 'Ajukan Termin 1' : 'Ajukan Ulang' }}</button>
+                        <button class="btn btn-warning w-100 rounded-pill fw-semibold" id="btn-ajukan"><i class="bi bi-send"></i> {{ $b->status === B::S_DRAFT ? 'Ajukan Termin ' . $b->termin_aktif : 'Ajukan Ulang' }}</button>
                     </form>
                 @endif
 

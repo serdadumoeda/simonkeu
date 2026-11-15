@@ -24,6 +24,9 @@ class PengajuanBanprog extends Model
         'tgl_cair_t2' => 'date',
     ];
 
+    public const KATEGORI_TERMIN1 = 'Termin I';
+    public const KATEGORI_TERMIN2 = 'Termin II';
+
     // 11 status alur Banprog (sesuai workflow)
     public const S_DRAFT = 'Draft Banprog';
     public const S_VERIF_T1 = 'Menunggu Verifikasi';
@@ -80,7 +83,7 @@ class PengajuanBanprog extends Model
     public function getProgressAttribute(): int
     {
         if ($this->status === self::S_PERBAIKAN) {
-            return $this->tgl_cair_t1 ? 55 : 15;
+            return $this->termin_aktif === 2 ? 55 : 15;
         }
         $idx = array_search($this->status, self::STATUS_ORDER);
         if ($idx === false) return 0;
@@ -89,7 +92,7 @@ class PengajuanBanprog extends Model
 
     public function getTerminAktifAttribute(): int
     {
-        return $this->tgl_cair_t1 ? 2 : 1;
+        return ($this->tgl_cair_t1 || $this->kategori_pengajuan === self::KATEGORI_TERMIN2) ? 2 : 1;
     }
 
     public function getBadgeClassAttribute(): string

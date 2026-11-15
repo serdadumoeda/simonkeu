@@ -196,4 +196,48 @@ class BanprogWorkflowTest extends TestCase
         ]);
         $this->assertEquals('Perlu Perbaikan', $p->fresh()->status);
     }
+
+    public function test_manual_termin_nominals_and_kategori_termin_ii(): void
+    {
+        $pemohon = $this->mk('Pemohon_BP_T2', 'Operator Bidang', 'Pemberdayaan', true);
+        $verif = $this->mk('Verif_BP_T2', 'Verifikator Keuangan');
+
+        // 1. Pengajuan Termin I dengan nominal manual (bukan 70/30 persis)
+        $this->actingAs($pemohon)->post(route('banprog.store'), $this->payload([
+            'kategori_pengajuan' => 'Termin I',
+            'nilai_banprog' => 45903800,
+            'nilai_termin_1' => 32000000,
+            'nilai_termin_2' => 13903800,
+        ]))->assertRedirect();
+
+        $b1 = B::latest('id')->first();
+        $this->assertEquals('Termin I', $b1->kategori_pengajuan);
+        $this->assertEquals(32000000, (float) $b1->nilai_termin_1);
+        $this->assertEquals(13903800, (float) $b1->nilai_termin_2);
+        $this->assertEquals(B::S_VERIF_T1, $b1->status);
+
+        // 2. Pengajuan langsung kategori Termin II dengan nominal manual
+        $this->actingAs($pemohon)->post(route('banprog.store'), $this->payload([
+            'kategori_pengajuan' => 'Termin II',
+            'nilai_banprog' => 45903800,
+            'nilai_termin_1' => 32132660,
+            'nilai_termin_2' => 13771140,
+            'link_drive_termin1' => 'https://drive.google.com/t2-langsung',
+            'dok' => $this->allChecks(B::CHECKLIST_TERMIN2),
+        ]))->assertRedirect();
+
+        $b2 = B::latest('id')->first();
+        $this->assertEquals('Termin II', $b2->kategori_pengajuan);
+        $this->assertEquals(B::S_VERIF_T2, $b2->status);
+        $this->assertEquals('https://drive.google.com/t2-langsung', $b2->link_drive_laporan);
+        $this->assertNull($b2->link_drive_termin1);
+        $this->assertCount(count(B::CHECKLIST_TERMIN2), $b2->checklist_termin2_json);
+
+        // Verifikator menyetujui Termin II langsung -> masuk PPK T2
+        $this->actingAs($verif)->post(route('banprog.verifikasi', $b2->id), [
+            'keputusan' => 'setuju',
+            'cek' => $this->allChecks(B::CHECKLIST_TERMIN2),
+        ]);
+        $this->assertEquals(B::S_PPK_T2, $b2->fresh()->status);
+    }
 }
