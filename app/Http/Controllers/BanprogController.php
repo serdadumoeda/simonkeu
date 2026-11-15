@@ -53,11 +53,13 @@ class BanprogController extends Controller
                 $query->where('status', '!=', B::S_DRAFT);
                 break;
             case 'PPK':
-                $query->whereNotIn('status', [B::S_DRAFT, B::S_VERIF_T1]);
+                $query->whereNotIn('status', [B::S_DRAFT, B::S_VERIF]);
                 break;
             case 'Operator Pembayaran':
+                $query->whereIn('status', [B::S_SPP, B::S_SAKTI, B::S_SP2D, B::S_CAIR, B::S_SELESAI]);
+                break;
             case 'Bendahara':
-                $query->whereIn('status', [B::S_SPM_T1, B::S_SP2D_T1, B::S_LAPORAN, B::S_VERIF_T2, B::S_PPK_T2, B::S_SPM_T2, B::S_SP2D_T2, B::S_SELESAI]);
+                $query->whereIn('status', [B::S_SP2D, B::S_CAIR, B::S_SELESAI]);
                 break;
         }
 
@@ -77,8 +79,8 @@ class BanprogController extends Controller
         $all = (clone $query)->get();
         $stats = [
             'total' => $all->count(),
-            'proses' => $all->whereNotIn('status', [B::S_DRAFT, B::S_SELESAI, B::S_LAPORAN])->count(),
-            'laporan' => $all->where('status', B::S_LAPORAN)->count(),
+            'proses' => $all->whereNotIn('status', [B::S_DRAFT, B::S_SELESAI])->count(),
+            'cair' => $all->whereIn('status', [B::S_CAIR, B::S_SELESAI])->count(),
             'selesai' => $all->where('status', B::S_SELESAI)->count(),
             'nilai' => $all->sum('nilai_banprog'),
         ];
@@ -105,7 +107,7 @@ class BanprogController extends Controller
         return $prefix . str_pad($n, 3, '0', STR_PAD_LEFT);
     }
 
-    // 3. SIMPAN
+    // 3. SIMPAN PENGAJUAN (Termin I atau Termin II terpisah, nominal manual)
     public function store(Request $request)
     {
         $user = Auth::user();
@@ -114,48 +116,39 @@ class BanprogController extends Controller
         $data = $request->validate([
             'nama_lpks' => 'required|string|max:255',
             'kabupaten_kota' => 'required|string|max:255',
-            'nama_kepala_lpks' => 'required|string|max:255',
-            'no_hp_kepala_lpks' => 'required|string|max:30',
             'kejuruan' => 'required|string|max:255',
             'no_sk_penetapan' => 'nullable|string|max:255',
             'rekening_lpks' => 'nullable|string|max:100',
             'bank_lpks' => 'nullable|string|max:100',
-            'tgl_pelaksanaan_mulai' => 'nullable|date',
-            'tgl_pelaksanaan_selesai' => 'nullable|date|after_or_equal:tgl_pelaksanaan_mulai',
             'kategori_pengajuan' => 'nullable|string|in:Termin I,Termin II',
             'nilai_banprog' => 'required|numeric|min:1',
-            'nilai_termin_1' => 'nullable|numeric|min:0',
-            'nilai_termin_2' => 'nullable|numeric|min:0',
             'link_drive_termin1' => 'required_without:link_drive_laporan|nullable|url',
             'link_drive_laporan' => 'nullable|url',
         ]);
 
         $total = (float) $data['nilai_banprog'];
-        $t1 = $request->filled('nilai_termin_1') ? (float) $request->nilai_termin_1 : round($total * 0.7, 2);
-        $t2 = $request->filled('nilai_termin_2') ? (float) $request->nilai_termin_2 : max(0, $total - $t1);
-        $data['nilai_termin_1'] = $t1;
-        $data['nilai_termin_2'] = $t2;
-
         $kategori = $request->input('kategori_pengajuan') === B::KATEGORI_TERMIN2 ? B::KATEGORI_TERMIN2 : B::KATEGORI_TERMIN1;
         $isT2 = $kategori === B::KATEGORI_TERMIN2;
 
         $data['kategori_pengajuan'] = $kategori;
+        $data['nilai_termin_1'] = $isT2 ? 0 : $total;
+        $data['nilai_termin_2'] = $isT2 ? $total : 0;
         $data['no_banprog'] = $this->generateNo();
         $data['user_id'] = $user->id;
         $data['bidang'] = $user->bidang;
+        $data['spj_status'] = 'Belum Upload';
 
         $checklist = array_map('intval', array_keys((array) $request->input('dok', [])));
         $ajukan = $request->input('action') !== 'draft';
+        $data['status'] = $ajukan ? B::S_VERIF : B::S_DRAFT;
 
         if ($isT2) {
             $data['link_drive_laporan'] = $request->input('link_drive_laporan') ?: $request->input('link_drive_termin1');
             unset($data['link_drive_termin1']);
             $data['checklist_termin2_json'] = $checklist;
-            $data['status'] = $ajukan ? B::S_VERIF_T2 : B::S_DRAFT;
             if ($ajukan) $data['tgl_pengajuan_termin2'] = now();
         } else {
             $data['checklist_termin1_json'] = $checklist;
-            $data['status'] = $ajukan ? B::S_VERIF_T1 : B::S_DRAFT;
             if ($ajukan) $data['tgl_pengajuan_termin1'] = now();
         }
 
@@ -164,7 +157,7 @@ class BanprogController extends Controller
         $b->save();
 
         if ($ajukan) {
-            $this->notifyRole('Verifikator Keuangan', 'Banprog Baru Menunggu Verifikasi', "Banprog {$b->no_banprog} ({$b->nama_lpks}) menunggu verifikasi {$kategori}.");
+            $this->notifyRole('Verifikator Keuangan', 'Banprog Baru Menunggu Verifikasi', "Banprog {$b->no_banprog} ({$b->nama_lpks} — {$kategori}) menunggu verifikasi.");
         }
 
         return redirect()->route('banprog.show', $b->id)->with('success', $ajukan ? "Pengajuan Banprog {$kategori} berhasil diajukan." : 'Draft Banprog berhasil disimpan.');
@@ -180,7 +173,7 @@ class BanprogController extends Controller
         return view('banprog.show', compact('b'));
     }
 
-    // 5. AJUKAN (dari Draft / Perlu Perbaikan) — pemohon
+    // 5. AJUKAN / AJUKAN ULANG (dari Draft / Perlu Perbaikan) — pemohon
     public function ajukan(Request $request, $id)
     {
         $user = Auth::user();
@@ -191,15 +184,14 @@ class BanprogController extends Controller
         $request->validate(['link_drive' => 'nullable|url']);
 
         if ($b->termin_aktif === 2) {
-            // pengajuan atau revisi di tahap termin 2
             if ($request->filled('link_drive')) $b->link_drive_laporan = $request->link_drive;
-            $b->status = B::S_VERIF_T2;
-            $b->tgl_pengajuan_termin2 = now();
+            $b->tgl_pengajuan_termin2 = $b->tgl_pengajuan_termin2 ?? now();
         } else {
             if ($request->filled('link_drive')) $b->link_drive_termin1 = $request->link_drive;
-            $b->status = B::S_VERIF_T1;
-            $b->tgl_pengajuan_termin1 = now();
+            $b->tgl_pengajuan_termin1 = $b->tgl_pengajuan_termin1 ?? now();
         }
+
+        $b->status = B::S_VERIF;
         $b->addHistori('Mengajukan ulang', $request->catatan);
         $b->save();
 
@@ -207,15 +199,15 @@ class BanprogController extends Controller
         return back()->with('success', 'Pengajuan berhasil dikirim ke Verifikator Keuangan.');
     }
 
-    // 6. VERIFIKASI (T1 & T2) — Verifikator Keuangan
+    // 6. VERIFIKASI KEUANGAN — Verifikator Keuangan
     public function verifikasi(Request $request, $id)
     {
         $user = Auth::user();
         abort_unless(in_array($user->role, ['Verifikator Keuangan', 'Admin Keuangan']), 403);
         $b = B::findOrFail($id);
-        abort_unless(in_array($b->status, [B::S_VERIF_T1, B::S_VERIF_T2]), 422, 'Status tidak valid.');
+        abort_unless($b->status === B::S_VERIF, 422, 'Status tidak valid.');
 
-        $isT2 = $b->status === B::S_VERIF_T2;
+        $isT2 = $b->termin_aktif === 2;
         $listDok = $isT2 ? B::CHECKLIST_TERMIN2 : B::CHECKLIST_TERMIN1;
         $checked = array_map('intval', array_keys((array) $request->input('cek', [])));
 
@@ -224,11 +216,11 @@ class BanprogController extends Controller
                 return back()->with('error', 'Seluruh checklist dokumen wajib dicentang sebelum disetujui.');
             }
             $b->{$isT2 ? 'checklist_termin2_json' : 'checklist_termin1_json'} = $checked;
-            $b->status = $isT2 ? B::S_PPK_T2 : B::S_PPK_T1;
+            $b->status = B::S_PPK;
             $b->catatan_revisi = null;
-            $b->addHistori('Verifikasi ' . ($isT2 ? 'Laporan T2' : 'Termin 1') . ' disetujui', $request->catatan);
+            $b->addHistori("Verifikasi {$b->kategori_pengajuan} disetujui", $request->catatan);
             $b->save();
-            $this->notifyRole('PPK', 'Banprog Menunggu Persetujuan PPK', "Banprog {$b->no_banprog} ({$b->nama_lpks}) — Termin " . ($isT2 ? 2 : 1) . " menunggu persetujuan Anda.");
+            $this->notifyRole('PPK', 'Banprog Menunggu Persetujuan PPK', "Banprog {$b->no_banprog} ({$b->nama_lpks} — {$b->kategori_pengajuan}) menunggu persetujuan Anda.");
             return back()->with('success', 'Verifikasi disetujui, diteruskan ke PPK.');
         }
 
@@ -242,21 +234,20 @@ class BanprogController extends Controller
         return back()->with('success', 'Pengajuan dikembalikan ke pemohon untuk perbaikan.');
     }
 
-    // 7. PERSETUJUAN PPK (T1 & T2)
+    // 7. PERSETUJUAN PPK
     public function ppkApproval(Request $request, $id)
     {
         $user = Auth::user();
         abort_unless(in_array($user->role, ['PPK', 'Admin Keuangan']), 403);
         $b = B::findOrFail($id);
-        abort_unless(in_array($b->status, [B::S_PPK_T1, B::S_PPK_T2]), 422, 'Status tidak valid.');
-        $isT2 = $b->status === B::S_PPK_T2;
+        abort_unless($b->status === B::S_PPK, 422, 'Status tidak valid.');
 
         if ($request->input('keputusan') === 'setuju') {
-            $b->status = $isT2 ? B::S_SPM_T2 : B::S_SPM_T1;
-            $b->addHistori('PPK menyetujui Termin ' . ($isT2 ? 2 : 1), $request->catatan);
+            $b->status = B::S_SPP;
+            $b->addHistori("PPK menyetujui {$b->kategori_pengajuan}", $request->catatan);
             $b->save();
-            $this->notifyRole('Operator Pembayaran', 'Banprog Siap Proses SPM', "Banprog {$b->no_banprog} ({$b->nama_lpks}) — silakan input SPM Termin " . ($isT2 ? 2 : 1) . ".");
-            return back()->with('success', 'Disetujui PPK, diteruskan ke Operator Pembayaran.');
+            $this->notifyRole('Operator Pembayaran', 'Banprog Siap Penerbitan SPP', "Banprog {$b->no_banprog} ({$b->nama_lpks}) disetujui PPK. Silakan terbitkan SPP.");
+            return back()->with('success', 'Disetujui PPK, diteruskan ke Operator Pembayaran untuk Penerbitan SPP.');
         }
 
         $request->validate(['catatan' => 'required|string']);
@@ -268,77 +259,160 @@ class BanprogController extends Controller
         return back()->with('success', 'Pengajuan dikembalikan ke pemohon.');
     }
 
-    // 8. INPUT SPM (T1 & T2) — Operator Pembayaran
+    // 8. PENERBITAN SPP — Operator Pembayaran
+    public function penerbitanSpp(Request $request, $id)
+    {
+        $user = Auth::user();
+        abort_unless(in_array($user->role, ['Operator Pembayaran', 'Admin Keuangan']), 403);
+        $b = B::findOrFail($id);
+        abort_unless($b->status === B::S_SPP, 422, 'Status tidak valid.');
+
+        $request->validate(['no_spp' => 'required|string|max:100', 'tgl_spp' => 'required|date']);
+        $b->no_spp = $request->no_spp;
+        $b->tgl_spp = $request->tgl_spp;
+        $b->status = B::S_SAKTI;
+        $b->addHistori("Penerbitan SPP: {$request->no_spp}", $request->catatan);
+        $b->save();
+
+        $this->notifyRole('Operator Pembayaran', 'Banprog Siap Proses SAKTI/SPM', "Banprog {$b->no_banprog} ({$b->nama_lpks}) — SPP terbit, silakan input SPM.");
+        return back()->with('success', 'SPP berhasil diterbitkan, lanjut ke tahap SAKTI/SPM.');
+    }
+
+    // 9. INPUT SPM (SAKTI/SPM PPSPM) — Operator Pembayaran
     public function inputSpm(Request $request, $id)
     {
         $user = Auth::user();
         abort_unless(in_array($user->role, ['Operator Pembayaran', 'Admin Keuangan']), 403);
         $b = B::findOrFail($id);
-        abort_unless(in_array($b->status, [B::S_SPM_T1, B::S_SPM_T2]), 422, 'Status tidak valid.');
-        $t = $b->status === B::S_SPM_T2 ? 2 : 1;
+        abort_unless($b->status === B::S_SAKTI, 422, 'Status tidak valid.');
+        $t = $b->termin_aktif;
 
         $request->validate(['no_spm' => 'required|string|max:100', 'tgl_spm' => 'required|date']);
         $b->{"no_spm_t$t"} = $request->no_spm;
         $b->{"tgl_spm_t$t"} = $request->tgl_spm;
-        $b->status = $t === 2 ? B::S_SP2D_T2 : B::S_SP2D_T1;
-        $b->addHistori("Input SPM Termin $t: {$request->no_spm}");
+        $b->status = B::S_SP2D;
+        $b->addHistori("Input SPM SAKTI: {$request->no_spm}");
         $b->save();
-        $this->notifyRole('Bendahara', 'Banprog Menunggu SP2D', "Banprog {$b->no_banprog} — SPM Termin $t telah terbit, silakan input SP2D & pencairan.");
-        return back()->with('success', "SPM Termin $t berhasil disimpan.");
+
+        $this->notifyRole('Bendahara', 'Banprog Menunggu SP2D', "Banprog {$b->no_banprog} — SPM telah terbit, silakan input SP2D & pencairan.");
+        return back()->with('success', 'SPM berhasil disimpan, menunggu pencairan SP2D oleh Bendahara.');
     }
 
-    // 9. INPUT SP2D / PENCAIRAN (T1 & T2) — Bendahara
+    // 10. PENCAIRAN (INPUT SP2D) — Bendahara
     public function pencairan(Request $request, $id)
     {
         $user = Auth::user();
         abort_unless(in_array($user->role, ['Bendahara', 'Admin Keuangan']), 403);
         $b = B::findOrFail($id);
-        abort_unless(in_array($b->status, [B::S_SP2D_T1, B::S_SP2D_T2]), 422, 'Status tidak valid.');
-        $t = $b->status === B::S_SP2D_T2 ? 2 : 1;
+        abort_unless($b->status === B::S_SP2D, 422, 'Status tidak valid.');
+        $t = $b->termin_aktif;
 
         $request->validate(['no_sp2d' => 'required|string|max:100', 'tgl_cair' => 'required|date']);
         $b->{"no_sp2d_t$t"} = $request->no_sp2d;
         $b->{"tgl_cair_t$t"} = $request->tgl_cair;
-        $b->status = $t === 2 ? B::S_SELESAI : B::S_LAPORAN;
-        $b->addHistori("Termin $t dicairkan (SP2D {$request->no_sp2d})");
+        $b->status = B::S_CAIR;
+        $b->addHistori("Dicairkan (SP2D {$request->no_sp2d})");
         $b->save();
 
-        $msg = $t === 1
-            ? "Termin 1 (70%) Banprog {$b->no_banprog} telah cair. Silakan upload laporan pelaksanaan untuk pengajuan Termin 2."
-            : "Termin 2 (30%) Banprog {$b->no_banprog} telah cair. Banprog SELESAI.";
-        $this->notifyUser($b->user_id, "Banprog Termin $t Cair", $msg);
-        return back()->with('success', "Pencairan Termin $t berhasil dicatat.");
+        $this->notifyUser($b->user_id, 'Banprog Dicairkan', "Dana Banprog {$b->no_banprog} ({$b->kategori_pengajuan}) telah dicairkan (SP2D {$request->no_sp2d}).");
+        return back()->with('success', 'Pencairan SP2D berhasil dicatat, lanjut ke tahap Penyerahan.');
     }
 
-    // 10. UPLOAD LAPORAN (syarat Termin 2) — pemohon
-    public function uploadLaporan(Request $request, $id)
+    // 11. PENYERAHAN — Bendahara
+    public function penyerahan(Request $request, $id)
+    {
+        $user = Auth::user();
+        abort_unless(in_array($user->role, ['Bendahara', 'Admin Keuangan']), 403);
+        $b = B::findOrFail($id);
+        abort_unless($b->status === B::S_CAIR, 422, 'Status tidak valid.');
+
+        $request->validate(['bukti_penyerahan' => 'nullable|string|max:500']);
+        $b->bukti_penyerahan = $request->bukti_penyerahan;
+        $b->status = B::S_SELESAI;
+        $b->spj_status = 'Belum Upload';
+        $b->spj_deadline = now()->addDays(14);
+        $b->addHistori('Penyerahan selesai', $request->bukti_penyerahan);
+        $b->save();
+
+        $this->notifyUser($b->user_id, 'Banprog Selesai Dicairkan', "Penyerahan Banprog {$b->no_banprog} selesai. Menunggu upload SPM/SP2D untuk kelengkapan SPJ.");
+        return back()->with('success', 'Penyerahan selesai dicatat. Masuk ke tahap penatausahaan SPJ.');
+    }
+
+    // 12. UPLOAD SPM/SP2D (SPJ TAHAP 1) — Verifikator Keuangan / Operator Pembayaran
+    public function uploadSpjVerifikator(Request $request, $id)
+    {
+        $user = Auth::user();
+        abort_unless(in_array($user->role, ['Verifikator Keuangan', 'Operator Pembayaran', 'Admin Keuangan']), 403);
+        $b = B::findOrFail($id);
+        abort_unless($b->status === B::S_SELESAI && ($b->spj_status ?? 'Belum Upload') === 'Belum Upload', 422, 'Status tidak valid.');
+
+        $request->validate(['spj_verifikator_link' => 'required|url']);
+        $b->spj_verifikator_link = $request->spj_verifikator_link;
+        $b->spj_status = 'Menunggu Upload Pemohon';
+        $b->addHistori('Upload SPM/SP2D (SPJ Keuangan)');
+        $b->save();
+
+        $this->notifyUser($b->user_id, 'Upload SPJ Pemohon Diperlukan', "SPM/SP2D Banprog {$b->no_banprog} sudah diunggah. Silakan unggah link SPJ Pemohon.");
+        return back()->with('success', 'Link SPM/SP2D berhasil diunggah, diteruskan ke Pemohon.');
+    }
+
+    // 13. UPLOAD SPJ PEMOHON (SPJ TAHAP 2) — Pemohon (SriSulis / Herna)
+    public function uploadSpjPemohon(Request $request, $id)
     {
         $user = Auth::user();
         $b = B::findOrFail($id);
-        abort_unless($this->isPemohonBanprog($user) && $b->bidang === $user->bidang, 403);
-        abort_unless($b->status === B::S_LAPORAN, 422, 'Status tidak valid.');
+        $allowed = ($this->isPemohonBanprog($user) && $b->bidang === $user->bidang) || $user->role === 'Admin Keuangan';
+        abort_unless($allowed, 403);
+        abort_unless($b->status === B::S_SELESAI && $b->spj_status === 'Menunggu Upload Pemohon', 422, 'Status tidak valid.');
 
-        $request->validate(['link_drive_laporan' => 'required|url']);
-        $b->link_drive_laporan = $request->link_drive_laporan;
-        $b->checklist_termin2_json = array_map('intval', array_keys((array) $request->input('dok', [])));
-        $b->status = B::S_VERIF_T2;
-        $b->tgl_pengajuan_termin2 = now();
-        $b->addHistori('Upload laporan & mengajukan Termin 2', $request->catatan);
+        $request->validate(['spj_pemohon_link' => 'required|url']);
+        $b->spj_pemohon_link = $request->spj_pemohon_link;
+        $b->spj_status = 'Menunggu Verifikasi SPJ';
+        $b->addHistori('Upload SPJ Pemohon');
         $b->save();
-        $this->notifyRole('Verifikator Keuangan', 'Laporan Banprog Masuk', "Laporan Banprog {$b->no_banprog} ({$b->nama_lpks}) menunggu verifikasi Termin 2.");
-        return back()->with('success', 'Laporan berhasil dikirim untuk verifikasi Termin 2.');
+
+        $this->notifyRole('Verifikator Keuangan', 'SPJ Banprog Menunggu Verifikasi', "SPJ Pemohon untuk {$b->no_banprog} ({$b->nama_lpks}) menunggu verifikasi.");
+        return back()->with('success', 'SPJ Pemohon berhasil dikirim ke Verifikator Keuangan.');
     }
 
-    // 11. CETAK CHECKLIST
+    // 14. VERIFIKASI SPJ (SPJ TAHAP 3) — Verifikator Keuangan
+    public function verifikasiSpj(Request $request, $id)
+    {
+        $user = Auth::user();
+        abort_unless(in_array($user->role, ['Verifikator Keuangan', 'Admin Keuangan']), 403);
+        $b = B::findOrFail($id);
+        abort_unless($b->status === B::S_SELESAI && $b->spj_status === 'Menunggu Verifikasi SPJ', 422, 'Status tidak valid.');
+
+        if ($request->input('keputusan') === 'setuju') {
+            $b->spj_status = 'SPJ Lengkap';
+            $b->catatan_spj = $request->catatan;
+            $b->addHistori('Verifikasi SPJ Lengkap', $request->catatan);
+            $b->save();
+            $this->notifyUser($b->user_id, 'SPJ Banprog Lengkap', "SPJ Banprog {$b->no_banprog} telah diverifikasi dan dinyatakan LENGKAP.");
+            return back()->with('success', 'SPJ dinyatakan lengkap.');
+        }
+
+        $request->validate(['catatan' => 'required|string'], ['catatan.required' => 'Catatan perbaikan SPJ wajib diisi.']);
+        $b->spj_status = 'Menunggu Upload Pemohon';
+        $b->catatan_spj = $request->catatan;
+        $b->addHistori('SPJ dikembalikan untuk perbaikan', $request->catatan);
+        $b->save();
+        $this->notifyUser($b->user_id, 'SPJ Banprog Perlu Perbaikan', "SPJ {$b->no_banprog}: {$request->catatan}");
+        return back()->with('success', 'SPJ dikembalikan ke pemohon untuk diperbaiki.');
+    }
+
+    // 15. CETAK CHECKLIST
     public function cetak($id, Request $request)
     {
         abort_unless($this->canAccessModule(Auth::user()), 403);
         $b = B::findOrFail($id);
-        $termin = (int) $request->get('termin', 1) === 2 ? 2 : 1;
+        $termin = $request->has('termin')
+            ? ((int) $request->get('termin') === 2 ? 2 : 1)
+            : $b->termin_aktif;
         return view('banprog.cetak', compact('b', 'termin'));
     }
 
-    // 12. HAPUS
+    // 16. HAPUS
     public function destroy($id)
     {
         $user = Auth::user();

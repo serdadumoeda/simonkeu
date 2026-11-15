@@ -18,32 +18,41 @@ class PengajuanBanprog extends Model
         'tgl_pelaksanaan_selesai' => 'date',
         'tgl_pengajuan_termin1' => 'date',
         'tgl_pengajuan_termin2' => 'date',
+        'tgl_spp' => 'date',
         'tgl_spm_t1' => 'date',
         'tgl_cair_t1' => 'date',
         'tgl_spm_t2' => 'date',
         'tgl_cair_t2' => 'date',
+        'spj_deadline' => 'date',
     ];
 
     public const KATEGORI_TERMIN1 = 'Termin I';
     public const KATEGORI_TERMIN2 = 'Termin II';
 
-    // 11 status alur Banprog (sesuai workflow)
+    // Alur disamakan dengan Pengajuan LS (untuk masing-masing Termin I dan Termin II)
     public const S_DRAFT = 'Draft Banprog';
-    public const S_VERIF_T1 = 'Menunggu Verifikasi';
+    public const S_VERIF = 'Menunggu Verifikasi';
     public const S_PERBAIKAN = 'Perlu Perbaikan';
-    public const S_PPK_T1 = 'Proses Persetujuan PPK';
-    public const S_SPM_T1 = 'Proses SPM Termin 1';
-    public const S_SP2D_T1 = 'Menunggu SP2D Termin 1';
-    public const S_LAPORAN = 'Menunggu Laporan LPKS';
-    public const S_VERIF_T2 = 'Verifikasi Laporan T2';
-    public const S_PPK_T2 = 'Proses Persetujuan PPK T2';
-    public const S_SPM_T2 = 'Proses SPM Termin 2';
-    public const S_SP2D_T2 = 'Menunggu SP2D Termin 2';
+    public const S_PPK = 'Proses Persetujuan PPK';
+    public const S_SPP = 'Penerbitan SPP';
+    public const S_SAKTI = 'Diajukan ke SAKTI';
+    public const S_SP2D = 'Belum Terbit SP2D';
+    public const S_CAIR = 'Dicairkan';
     public const S_SELESAI = 'Selesai';
 
+    // Alias kompatibilitas
+    public const S_VERIF_T1 = self::S_VERIF;
+    public const S_PPK_T1 = self::S_PPK;
+
     public const STATUS_ORDER = [
-        self::S_DRAFT, self::S_VERIF_T1, self::S_PPK_T1, self::S_SPM_T1, self::S_SP2D_T1,
-        self::S_LAPORAN, self::S_VERIF_T2, self::S_PPK_T2, self::S_SPM_T2, self::S_SP2D_T2, self::S_SELESAI,
+        self::S_DRAFT,
+        self::S_VERIF,
+        self::S_PPK,
+        self::S_SPP,
+        self::S_SAKTI,
+        self::S_SP2D,
+        self::S_CAIR,
+        self::S_SELESAI,
     ];
 
     public const CHECKLIST_TERMIN1 = [
@@ -83,7 +92,7 @@ class PengajuanBanprog extends Model
     public function getProgressAttribute(): int
     {
         if ($this->status === self::S_PERBAIKAN) {
-            return $this->termin_aktif === 2 ? 55 : 15;
+            return 15;
         }
         $idx = array_search($this->status, self::STATUS_ORDER);
         if ($idx === false) return 0;
@@ -92,18 +101,18 @@ class PengajuanBanprog extends Model
 
     public function getTerminAktifAttribute(): int
     {
-        return ($this->tgl_cair_t1 || $this->kategori_pengajuan === self::KATEGORI_TERMIN2) ? 2 : 1;
+        return $this->kategori_pengajuan === self::KATEGORI_TERMIN2 ? 2 : 1;
     }
 
     public function getBadgeClassAttribute(): string
     {
         return match ($this->status) {
             self::S_DRAFT => 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25',
-            self::S_VERIF_T1, self::S_VERIF_T2 => 'bg-warning bg-opacity-10 text-dark border border-warning border-opacity-50',
+            self::S_VERIF => 'bg-warning bg-opacity-10 text-dark border border-warning border-opacity-50',
             self::S_PERBAIKAN => 'bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25',
-            self::S_PPK_T1, self::S_PPK_T2 => 'bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25',
-            self::S_SPM_T1, self::S_SPM_T2, self::S_SP2D_T1, self::S_SP2D_T2 => 'bg-info bg-opacity-10 text-info border border-info border-opacity-25',
-            self::S_LAPORAN => 'bg-orange text-white',
+            self::S_PPK, self::S_SPP, self::S_SAKTI => 'bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25',
+            self::S_SP2D => 'bg-info bg-opacity-10 text-info border border-info border-opacity-25',
+            self::S_CAIR => 'bg-success bg-opacity-10 text-success border border-success border-opacity-25',
             self::S_SELESAI => 'bg-success text-white',
             default => 'bg-light text-dark border',
         };

@@ -24,8 +24,8 @@ class BanprogWorkflowTest extends TestCase
     {
         return array_merge([
             'nama_lpks' => 'LPKS Maju Jaya', 'kabupaten_kota' => 'Sukoharjo',
-            'nama_kepala_lpks' => 'Pak Budi', 'no_hp_kepala_lpks' => '081234567890',
-            'kejuruan' => 'Menjahit', 'nilai_banprog' => 10000000,
+            'kejuruan' => 'Menjahit', 'kategori_pengajuan' => 'Termin I',
+            'nilai_banprog' => 10000000,
             'link_drive_termin1' => 'https://drive.google.com/t1',
             'dok' => [1 => 1, 2 => 1], 'action' => 'ajukan',
         ], $extra);
@@ -36,63 +36,70 @@ class BanprogWorkflowTest extends TestCase
         return array_fill_keys(array_keys($list), 1);
     }
 
-    public function test_full_banprog_workflow_termin1_to_termin2(): void
+    public function test_full_banprog_workflow_same_as_pengajuan_ls(): void
     {
-        $pemohon = $this->mk('Pemohon_BP', 'Operator Bidang', 'Pemberdayaan', true);
+        $pemohon = $this->mk('SriSulis', 'Operator Bidang', 'Pemberdayaan', true);
         $verif = $this->mk('Verif_BP', 'Verifikator Keuangan');
         $ppk = $this->mk('Ppk_BP', 'PPK', 'None');
         $opbay = $this->mk('Opbay_BP', 'Operator Pembayaran');
         $bendahara = $this->mk('Bend_BP', 'Bendahara');
 
-        // Pengajuan
+        // 1. Pemohon mengajukan (Termin I, nominal manual)
         $this->actingAs($pemohon)->get(route('banprog.create'))->assertOk();
         $this->actingAs($pemohon)->post(route('banprog.store'), $this->payload())->assertRedirect();
         $b = B::first();
-        $this->assertEquals(B::S_VERIF_T1, $b->status);
-        $this->assertEquals(7000000, (float) $b->nilai_termin_1);
-        $this->assertEquals(3000000, (float) $b->nilai_termin_2);
+        $this->assertEquals(B::S_VERIF, $b->status);
+        $this->assertEquals('Termin I', $b->kategori_pengajuan);
+        $this->assertEquals(10000000, (float) $b->nilai_banprog);
+        $this->assertEquals(10000000, (float) $b->nilai_termin_1);
+        $this->assertEquals(0, (float) $b->nilai_termin_2);
         $this->assertDatabaseHas('notifications', ['user_id' => $verif->id, 'title' => 'Banprog Baru Menunggu Verifikasi']);
 
-        // Verifikasi T1
+        // 2. Verifikasi Keuangan
         $this->actingAs($verif)->get(route('banprog.show', $b->id))->assertOk()->assertSee('Setujui → PPK', false);
         $this->actingAs($verif)->post(route('banprog.verifikasi', $b->id), ['keputusan' => 'setuju', 'cek' => $this->allChecks(B::CHECKLIST_TERMIN1)]);
-        $this->assertEquals(B::S_PPK_T1, $b->fresh()->status);
+        $this->assertEquals(B::S_PPK, $b->fresh()->status);
 
-        // PPK T1
+        // 3. Persetujuan PPK
         $this->actingAs($ppk)->post(route('banprog.ppkApproval', $b->id), ['keputusan' => 'setuju']);
-        $this->assertEquals(B::S_SPM_T1, $b->fresh()->status);
+        $this->assertEquals(B::S_SPP, $b->fresh()->status);
 
-        // SPM & SP2D T1
+        // 4. Penerbitan SPP (Operator Pembayaran)
+        $this->actingAs($opbay)->post(route('banprog.penerbitanSpp', $b->id), ['no_spp' => 'SPP-01', 'tgl_spp' => date('Y-m-d')]);
+        $this->assertEquals(B::S_SAKTI, $b->fresh()->status);
+
+        // 5. SAKTI/SPM (Operator Pembayaran)
         $this->actingAs($opbay)->post(route('banprog.inputSpm', $b->id), ['no_spm' => 'SPM-T1', 'tgl_spm' => date('Y-m-d')]);
-        $this->assertEquals(B::S_SP2D_T1, $b->fresh()->status);
+        $this->assertEquals(B::S_SP2D, $b->fresh()->status);
+
+        // 6. Pencairan SP2D (Bendahara)
         $this->actingAs($bendahara)->post(route('banprog.pencairan', $b->id), ['no_sp2d' => 'SP2D-T1', 'tgl_cair' => date('Y-m-d')]);
-        $b->refresh();
-        $this->assertEquals(B::S_LAPORAN, $b->status);
-        $this->assertNotNull($b->tgl_cair_t1);
-        $this->assertDatabaseHas('notifications', ['user_id' => $pemohon->id, 'title' => 'Banprog Termin 1 Cair']);
+        $this->assertEquals(B::S_CAIR, $b->fresh()->status);
 
-        // Laporan
-        $this->actingAs($pemohon)->post(route('banprog.uploadLaporan', $b->id), [
-            'link_drive_laporan' => 'https://drive.google.com/lap', 'dok' => $this->allChecks(B::CHECKLIST_TERMIN2),
-        ]);
-        $this->assertEquals(B::S_VERIF_T2, $b->fresh()->status);
-
-        // Termin 2
-        $this->actingAs($verif)->post(route('banprog.verifikasi', $b->id), ['keputusan' => 'setuju', 'cek' => $this->allChecks(B::CHECKLIST_TERMIN2)]);
-        $this->assertEquals(B::S_PPK_T2, $b->fresh()->status);
-        $this->actingAs($ppk)->post(route('banprog.ppkApproval', $b->id), ['keputusan' => 'setuju']);
-        $this->assertEquals(B::S_SPM_T2, $b->fresh()->status);
-        $this->actingAs($opbay)->post(route('banprog.inputSpm', $b->id), ['no_spm' => 'SPM-T2', 'tgl_spm' => date('Y-m-d')]);
-        $this->actingAs($bendahara)->post(route('banprog.pencairan', $b->id), ['no_sp2d' => 'SP2D-T2', 'tgl_cair' => date('Y-m-d')]);
+        // 7. Penyerahan (Bendahara)
+        $this->actingAs($bendahara)->post(route('banprog.penyerahan', $b->id), ['bukti_penyerahan' => 'Diserahkan ke LPKS']);
         $b->refresh();
         $this->assertEquals(B::S_SELESAI, $b->status);
+        $this->assertEquals('Belum Upload', $b->spj_status);
+
+        // 8. Upload SPM/SP2D (Verifikator / Operator Pembayaran)
+        $this->actingAs($verif)->post(route('banprog.uploadSpjVerifikator', $b->id), ['spj_verifikator_link' => 'https://drive.google.com/spj-verif']);
+        $this->assertEquals('Menunggu Upload Pemohon', $b->fresh()->spj_status);
+
+        // 9. SPJ Pemohon
+        $this->actingAs($pemohon)->post(route('banprog.uploadSpjPemohon', $b->id), ['spj_pemohon_link' => 'https://drive.google.com/spj-pemohon']);
+        $this->assertEquals('Menunggu Verifikasi SPJ', $b->fresh()->spj_status);
+
+        // 10. Verifikasi SPJ
+        $this->actingAs($verif)->post(route('banprog.verifikasiSpj', $b->id), ['keputusan' => 'setuju', 'catatan' => 'Lengkap']);
+        $b->refresh();
+        $this->assertEquals('SPJ Lengkap', $b->spj_status);
         $this->assertEquals(100, $b->progress);
-        $this->assertGreaterThanOrEqual(10, count($b->histori_json));
 
         // Halaman tetap bisa dibuka
         $this->actingAs($pemohon)->get(route('banprog.index'))->assertOk()->assertSee('LPKS Maju Jaya');
         $this->actingAs($pemohon)->get(route('banprog.show', $b->id))->assertOk();
-        $this->actingAs($verif)->get(route('banprog.cetak', [$b->id, 'termin' => 2]))->assertOk()->assertSee('CHECKLIST PENGAJUAN TERMIN 2');
+        $this->actingAs($verif)->get(route('banprog.cetak', [$b->id, 'termin' => 1]))->assertOk()->assertSee('CHECKLIST PENGAJUAN TERMIN 1');
     }
 
     public function test_verifikator_can_return_with_partial_checklist_but_cannot_approve(): void
@@ -145,8 +152,6 @@ class BanprogWorkflowTest extends TestCase
         $this->actingAs($ppk)->post(route('banprog.verifikasi', $b->id), ['keputusan' => 'setuju'])->assertForbidden();
         // PPK tidak bisa approve saat status bukan tahap PPK
         $this->actingAs($ppk)->post(route('banprog.ppkApproval', $b->id), ['keputusan' => 'setuju'])->assertStatus(422);
-        // Laporan tidak bisa sebelum Termin 1 cair
-        $this->actingAs($pemohon)->post(route('banprog.uploadLaporan', $b->id), ['link_drive_laporan' => 'https://x.com'])->assertStatus(422);
 
         // Pemohon bisa hapus draft
         $this->actingAs($pemohon)->delete(route('banprog.destroy', $b->id))->assertRedirect(route('banprog.index'));
@@ -199,45 +204,46 @@ class BanprogWorkflowTest extends TestCase
 
     public function test_manual_termin_nominals_and_kategori_termin_ii(): void
     {
-        $pemohon = $this->mk('Pemohon_BP_T2', 'Operator Bidang', 'Pemberdayaan', true);
+        $pemohon = $this->mk('Herna', 'Operator Bidang', 'Pemberdayaan', true);
         $verif = $this->mk('Verif_BP_T2', 'Verifikator Keuangan');
 
-        // 1. Pengajuan Termin I dengan nominal manual (bukan 70/30 persis)
+        // 1. Pengajuan Termin I dengan nominal manual (tanpa nama kepala/no hp/tgl pelaksanaan)
         $this->actingAs($pemohon)->post(route('banprog.store'), $this->payload([
             'kategori_pengajuan' => 'Termin I',
-            'nilai_banprog' => 45903800,
-            'nilai_termin_1' => 32000000,
-            'nilai_termin_2' => 13903800,
+            'nilai_banprog' => 32132660,
         ]))->assertRedirect();
 
         $b1 = B::latest('id')->first();
         $this->assertEquals('Termin I', $b1->kategori_pengajuan);
-        $this->assertEquals(32000000, (float) $b1->nilai_termin_1);
-        $this->assertEquals(13903800, (float) $b1->nilai_termin_2);
-        $this->assertEquals(B::S_VERIF_T1, $b1->status);
+        $this->assertEquals(32132660, (float) $b1->nilai_banprog);
+        $this->assertEquals(32132660, (float) $b1->nilai_termin_1);
+        $this->assertEquals(0, (float) $b1->nilai_termin_2);
+        $this->assertNull($b1->nama_kepala_lpks);
+        $this->assertEquals(B::S_VERIF, $b1->status);
 
-        // 2. Pengajuan langsung kategori Termin II dengan nominal manual
+        // 2. Pengajuan Termin II terpisah dengan nominal manual
         $this->actingAs($pemohon)->post(route('banprog.store'), $this->payload([
             'kategori_pengajuan' => 'Termin II',
-            'nilai_banprog' => 45903800,
-            'nilai_termin_1' => 32132660,
-            'nilai_termin_2' => 13771140,
+            'nilai_banprog' => 13771140,
             'link_drive_termin1' => 'https://drive.google.com/t2-langsung',
             'dok' => $this->allChecks(B::CHECKLIST_TERMIN2),
         ]))->assertRedirect();
 
         $b2 = B::latest('id')->first();
         $this->assertEquals('Termin II', $b2->kategori_pengajuan);
-        $this->assertEquals(B::S_VERIF_T2, $b2->status);
+        $this->assertEquals(13771140, (float) $b2->nilai_banprog);
+        $this->assertEquals(0, (float) $b2->nilai_termin_1);
+        $this->assertEquals(13771140, (float) $b2->nilai_termin_2);
+        $this->assertEquals(B::S_VERIF, $b2->status);
         $this->assertEquals('https://drive.google.com/t2-langsung', $b2->link_drive_laporan);
         $this->assertNull($b2->link_drive_termin1);
         $this->assertCount(count(B::CHECKLIST_TERMIN2), $b2->checklist_termin2_json);
 
-        // Verifikator menyetujui Termin II langsung -> masuk PPK T2
+        // Verifikator menyetujui Termin II -> masuk PPK
         $this->actingAs($verif)->post(route('banprog.verifikasi', $b2->id), [
             'keputusan' => 'setuju',
             'cek' => $this->allChecks(B::CHECKLIST_TERMIN2),
         ]);
-        $this->assertEquals(B::S_PPK_T2, $b2->fresh()->status);
+        $this->assertEquals(B::S_PPK, $b2->fresh()->status);
     }
 }

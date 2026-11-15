@@ -48,7 +48,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/pengajuan/{id}/edit-tanggal', [PengajuanController::class, 'adminEditDate'])->name('pengajuan.adminEditDate');
     Route::delete('/pengajuan/{id}', [PengajuanController::class, 'adminDelete'])->name('pengajuan.adminDelete');
 
-    // --- MODUL BANPROG LPKS (TERMIN 1 70% → LAPORAN → TERMIN 2 30%) ---
+    // --- MODUL BANPROG LPKS / BLKK (TERMIN I & TERMIN II DIPISAH, ALUR SAMA DENGAN PENGAJUAN LS) ---
     Route::get('/banprog', [BanprogController::class, 'index'])->name('banprog.index');
     Route::get('/banprog/buat', [BanprogController::class, 'create'])->name('banprog.create');
     Route::post('/banprog', [BanprogController::class, 'store'])->name('banprog.store');
@@ -57,9 +57,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/banprog/{id}/ajukan', [BanprogController::class, 'ajukan'])->name('banprog.ajukan');
     Route::post('/banprog/{id}/verifikasi', [BanprogController::class, 'verifikasi'])->name('banprog.verifikasi');
     Route::post('/banprog/{id}/approval-ppk', [BanprogController::class, 'ppkApproval'])->name('banprog.ppkApproval');
+    Route::post('/banprog/{id}/penerbitan-spp', [BanprogController::class, 'penerbitanSpp'])->name('banprog.penerbitanSpp');
     Route::post('/banprog/{id}/spm', [BanprogController::class, 'inputSpm'])->name('banprog.inputSpm');
     Route::post('/banprog/{id}/pencairan', [BanprogController::class, 'pencairan'])->name('banprog.pencairan');
-    Route::post('/banprog/{id}/laporan', [BanprogController::class, 'uploadLaporan'])->name('banprog.uploadLaporan');
+    Route::post('/banprog/{id}/penyerahan', [BanprogController::class, 'penyerahan'])->name('banprog.penyerahan');
+    Route::post('/banprog/{id}/spj-verifikator', [BanprogController::class, 'uploadSpjVerifikator'])->name('banprog.uploadSpjVerifikator');
+    Route::post('/banprog/{id}/spj-pemohon', [BanprogController::class, 'uploadSpjPemohon'])->name('banprog.uploadSpjPemohon');
+    Route::post('/banprog/{id}/verifikasi-spj', [BanprogController::class, 'verifikasiSpj'])->name('banprog.verifikasiSpj');
     Route::delete('/banprog/{id}', [BanprogController::class, 'destroy'])->name('banprog.destroy');
 
     // --- FITUR KETERSEDIAAN ANGGARAN ---

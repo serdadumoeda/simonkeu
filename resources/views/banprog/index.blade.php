@@ -11,7 +11,7 @@
             <div>
                 <span class="badge bg-warning text-dark rounded-pill px-3 mb-2"><i class="bi bi-buildings me-1"></i> Skema Banprog</span>
                 <h4 class="fw-bold mb-1 text-white">Bantuan Program LPKS & BLKK Binaan</h4>
-                <p class="mb-0 small text-white-50">Pencairan 2 termin: Termin 1 (70%) → Laporan Pelaksanaan → Termin 2 (30%)</p>
+                <p class="mb-0 small text-white-50">Pengajuan Termin I & Termin II terpisah dengan alur verifikasi, PPK, SPP, SAKTI/SPM, SP2D, Penyerahan, dan SPJ</p>
             </div>
             @if(Auth::user()->role == 'Operator Bidang' && Auth::user()->akses_banprog)
                 <a href="{{ route('banprog.create') }}" id="btn-buat-banprog" class="btn btn-warning fw-semibold rounded-pill px-4 shadow">
@@ -30,7 +30,7 @@
             $cards = [
                 ['Total Pengajuan', $stats['total'], 'bi-folder2-open', '#1e3c72'],
                 ['Dalam Proses', $stats['proses'], 'bi-hourglass-split', '#0d6efd'],
-                ['Menunggu Laporan', $stats['laporan'], 'bi-journal-text', '#fd7e14'],
+                ['Dicairkan / Selesai', $stats['cair'], 'bi-cash-stack', '#fd7e14'],
                 ['Selesai', $stats['selesai'], 'bi-patch-check-fill', '#198754'],
             ];
         @endphp
@@ -99,8 +99,10 @@
                             <td class="text-end small">
                                 <strong>Rp {{ number_format($b->nilai_banprog, 0, ',', '.') }}</strong>
                                 <div class="text-muted" style="font-size:11px">
-                                    T1 {{ $b->tgl_cair_t1 ? '✓' : '' }} {{ number_format($b->nilai_termin_1, 0, ',', '.') }} ·
-                                    T2 {{ $b->tgl_cair_t2 ? '✓' : '' }} {{ number_format($b->nilai_termin_2, 0, ',', '.') }}
+                                    {{ $b->kategori_pengajuan ?? 'Termin I' }}
+                                    @if($b->spj_status && $b->status === \App\Models\PengajuanBanprog::S_SELESAI)
+                                        · <span class="text-success">{{ $b->spj_status }}</span>
+                                    @endif
                                 </div>
                             </td>
                             <td>
