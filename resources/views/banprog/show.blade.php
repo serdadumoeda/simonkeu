@@ -16,53 +16,53 @@
         $spjStatus = $b->spj_status ?? 'Belum Upload';
 
         $steps = [
-            ['Pemohon', 'bi-pencil-square', $b->status === B::S_DRAFT ? 'active' : 'completed'],
+            ['Pemohon', 'bi-pencil-square', $b->status === B::S_DRAFT ? 'active' : 'completed', $b->user->name ?? 'Operator Bidang'],
             ['Verifikasi Keuangan', 'bi-clipboard-check', match(true) {
                 in_array($b->status, [B::S_PPK, B::S_SPP, B::S_SAKTI, B::S_SP2D, B::S_CAIR, B::S_SELESAI]) => 'completed',
                 $b->status === B::S_VERIF => 'active',
                 $b->status === B::S_PERBAIKAN => 'warning',
                 default => '',
-            }],
+            }, 'Verifikator Keuangan'],
             ['Persetujuan PPK', 'bi-person-check', match(true) {
                 in_array($b->status, [B::S_SPP, B::S_SAKTI, B::S_SP2D, B::S_CAIR, B::S_SELESAI]) => 'completed',
                 $b->status === B::S_PPK => 'active',
                 default => '',
-            }],
+            }, 'PPK'],
             ['Penerbitan SPP', 'bi-file-earmark-text', match(true) {
                 in_array($b->status, [B::S_SAKTI, B::S_SP2D, B::S_CAIR, B::S_SELESAI]) => 'completed',
                 $b->status === B::S_SPP => 'active',
                 default => '',
-            }],
+            }, 'Operator Pembayaran'],
             ['SAKTI/SPM (PPSPM)', 'bi-send-check', match(true) {
                 in_array($b->status, [B::S_SP2D, B::S_CAIR, B::S_SELESAI]) => 'completed',
                 $b->status === B::S_SAKTI => 'active',
                 default => '',
-            }],
+            }, 'Operator Pembayaran'],
             ['Pencairan', 'bi-bank', match(true) {
                 in_array($b->status, [B::S_CAIR, B::S_SELESAI]) => 'completed',
                 $b->status === B::S_SP2D => 'active',
                 default => '',
-            }],
+            }, 'Bendahara'],
             ['Penyerahan', 'bi-box-seam', match(true) {
                 $b->status === B::S_SELESAI => 'completed',
                 $b->status === B::S_CAIR => 'active',
                 default => '',
-            }],
+            }, 'Bendahara'],
             ['Upload SPM/SP2D', 'bi-cloud-upload', match(true) {
                 in_array($spjStatus, ['Menunggu Upload Pemohon', 'Menunggu Verifikasi SPJ', 'SPJ Lengkap']) => 'completed',
                 $b->status === B::S_SELESAI && $spjStatus === 'Belum Upload' => 'active',
                 default => '',
-            }],
+            }, 'Verifikator / Op. Bayar'],
             ['SPJ Pemohon', 'bi-file-earmark-arrow-up', match(true) {
                 in_array($spjStatus, ['Menunggu Verifikasi SPJ', 'SPJ Lengkap']) => 'completed',
                 $b->status === B::S_SELESAI && $spjStatus === 'Menunggu Upload Pemohon' => 'active',
                 default => '',
-            }],
+            }, $b->user->name ?? 'Pemohon'],
             ['Verifikasi SPJ', 'bi-patch-check-fill', match(true) {
                 $spjStatus === 'SPJ Lengkap' => 'completed',
                 $b->status === B::S_SELESAI && $spjStatus === 'Menunggu Verifikasi SPJ' => 'active',
                 default => '',
-            }],
+            }, 'Verifikator Keuangan'],
         ];
 
         $completedCount = collect($steps)->filter(fn($s) => $s[2] === 'completed')->count();
@@ -87,7 +87,8 @@
             <span class="badge {{ $b->badge_class }} rounded-pill px-3 py-1">{{ $b->status }}</span>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ route('banprog.cetak', [$b->id, 'termin' => $t]) }}" target="_blank" class="btn btn-outline-dark btn-sm rounded-pill"><i class="bi bi-printer"></i> Cetak Checklist T{{ $t }}</a>
+            <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 1]) }}" target="_blank" class="btn btn-outline-dark btn-sm rounded-pill"><i class="bi bi-printer"></i> Checklist T1</a>
+            <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 2]) }}" target="_blank" class="btn btn-outline-dark btn-sm rounded-pill"><i class="bi bi-printer"></i> Checklist T2</a>
             @if($isAdmin || ($isPemohon && $b->status === B::S_DRAFT))
                 <form action="{{ route('banprog.destroy', $b->id) }}" method="POST" onsubmit="return confirm('Hapus pengajuan Banprog ini?')">
                     @csrf @method('DELETE')
@@ -113,10 +114,11 @@
         <div class="stepper-container mb-2" style="min-width: 960px">
             <div class="stepper-line"></div>
             <div class="stepper-line-progress" style="width: {{ min(90, $progressPct) }}%"></div>
-            @foreach($steps as [$label, $icon, $cls])
+            @foreach($steps as [$label, $icon, $cls, $roleLabel])
                 <div class="stepper-item {{ $cls }}">
                     <div class="stepper-icon"><i class="bi {{ $cls === 'completed' ? 'bi-check-lg' : $icon }}"></i></div>
                     <div class="stepper-label">{{ $label }}</div>
+                    <div class="stepper-sublabel text-truncate" style="max-width: 110px;" title="{{ $roleLabel }}">{{ $roleLabel }}</div>
                 </div>
             @endforeach
         </div>
@@ -174,6 +176,8 @@
                 <div class="bp-section-title mb-3">Dokumen & Checklist ({{ $b->kategori_pengajuan ?? 'Termin I' }})</div>
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     @if($driveLink)<a href="{{ $driveLink }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill"><i class="bi bi-google"></i> Drive Dokumen {{ $b->kategori_pengajuan ?? 'Termin I' }}</a>@endif
+                    <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 1]) }}" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill"><i class="bi bi-printer"></i> Checklist Termin 1</a>
+                    <a href="{{ route('banprog.cetak', [$b->id, 'termin' => 2]) }}" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill"><i class="bi bi-printer"></i> Checklist Termin 2</a>
                     @if($b->spj_verifikator_link)<a href="{{ $b->spj_verifikator_link }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill"><i class="bi bi-file-earmark-pdf"></i> Link SPM/SP2D</a>@endif
                     @if($b->spj_pemohon_link)<a href="{{ $b->spj_pemohon_link }}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill"><i class="bi bi-folder-check"></i> Link SPJ Pemohon</a>@endif
                 </div>
